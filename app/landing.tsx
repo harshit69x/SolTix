@@ -99,7 +99,7 @@ export default function LandingScreen() {
           </View>
 
           <TouchableOpacity
-            onPress={() => router.push('/(tabs)/explore')}
+            onPress={() => router.replace('/(tabs)/explore')}
             className="flex-row items-center justify-center mt-4 py-3"
             activeOpacity={0.7}
           >

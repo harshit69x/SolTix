@@ -93,7 +93,7 @@ export default function EventsExplorerScreen() {
         renderItem={({ item }) => (
           <EventCard
             event={item}
-            onPress={() => router.push(`/event/${item.id}` as any)}
+            onPress={() => router.push({ pathname: '/event/[id]', params: { id: item.id } })}
           />
         )}
         ListEmptyComponent={

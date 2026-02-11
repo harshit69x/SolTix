@@ -1,7 +1,7 @@
 import { EventData } from '@/types';
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
-import React from 'react';
+import React, { useState } from 'react';
 import { Text, TouchableOpacity, View } from 'react-native';
 
 interface EventCardProps {
@@ -11,6 +11,7 @@ interface EventCardProps {
 }
 
 export function EventCard({ event, onPress, compact = false }: EventCardProps) {
+  const [imageError, setImageError] = useState(false);
   const ticketsRemaining = Math.max(0, event.totalTickets - event.ticketsSold);
   const soldPercentage = event.totalTickets > 0
     ? Math.min(100, Math.max(0, (event.ticketsSold / event.totalTickets) * 100))
@@ -45,11 +46,18 @@ export function EventCard({ event, onPress, compact = false }: EventCardProps) {
         className="flex-row bg-surface-card rounded-2xl overflow-hidden mb-3"
         activeOpacity={0.8}
       >
-        <Image
-          source={{ uri: event.imageUrl }}
-          className="w-24 h-24"
-          contentFit="cover"
-        />
+        {!imageError && event.imageUrl ? (
+          <Image
+            source={{ uri: event.imageUrl }}
+            className="w-24 h-24"
+            contentFit="cover"
+            onError={() => setImageError(true)}
+          />
+        ) : (
+          <View className="w-24 h-24 bg-surface-elevated items-center justify-center">
+            <Ionicons name="image-outline" size={24} color="#6b7280" />
+          </View>
+        )}
         <View className="flex-1 p-3 justify-between">
           <View>
             <Text className="text-white font-semibold text-sm" numberOfLines={1}>
@@ -88,11 +96,18 @@ export function EventCard({ event, onPress, compact = false }: EventCardProps) {
       activeOpacity={0.8}
     >
       <View className="relative">
-        <Image
-          source={{ uri: event.imageUrl }}
-          className="w-full h-48"
-          contentFit="cover"
-        />
+        {!imageError && event.imageUrl ? (
+          <Image
+            source={{ uri: event.imageUrl }}
+            className="w-full h-48"
+            contentFit="cover"
+            onError={() => setImageError(true)}
+          />
+        ) : (
+          <View className="w-full h-48 bg-surface-elevated items-center justify-center">
+            <Ionicons name="image-outline" size={40} color="#6b7280" />
+          </View>
+        )}
         {ticketsRemaining <= 10 && ticketsRemaining > 0 && (
           <View className="absolute top-3 right-3 bg-red-500/90 px-3 py-1 rounded-full">
             <Text className="text-white text-xs font-bold">

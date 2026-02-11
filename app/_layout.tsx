@@ -5,6 +5,7 @@ import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
 import 'react-native-reanimated';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import '@/global.css';
 
@@ -44,7 +45,7 @@ export default function RootLayout() {
   }, [connectWithAddress]);
 
   return (
-    <>
+    <SafeAreaProvider>
       <Stack
         screenOptions={{
           headerShown: false,
@@ -55,6 +56,7 @@ export default function RootLayout() {
         <Stack.Screen name="index" options={{ headerShown: false }} />
         <Stack.Screen name="landing" options={{ headerShown: false }} />
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+        <Stack.Screen name="+not-found" options={{ headerShown: false }} />
         <Stack.Screen
           name="event/[id]"
           options={{
@@ -79,6 +81,6 @@ export default function RootLayout() {
         />
       </Stack>
       <StatusBar style="light" />
-    </>
+    </SafeAreaProvider>
   );
 }

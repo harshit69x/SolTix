@@ -1,6 +1,7 @@
 import { PublicKey } from '@solana/web3.js';
 import * as Linking from 'expo-linking';
 import * as SecureStore from 'expo-secure-store';
+import nacl from 'tweetnacl';
 import { Platform } from 'react-native';
 
 import {
@@ -114,23 +115,66 @@ export const WALLET_PROVIDERS: WalletProvider[] = [
   },
 ];
 
-// ─── Encode for deep link ───
+// ─── Base58 Encode / Decode ───
+const BASE58_ALPHABET = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
+
 function encodeBase58(bytes: Uint8Array): string {
-  const ALPHABET = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
   let result = '';
   let num = BigInt(0);
   for (const byte of bytes) {
     num = num * BigInt(256) + BigInt(byte);
   }
   while (num > 0) {
-    result = ALPHABET[Number(num % BigInt(58))] + result;
+    result = BASE58_ALPHABET[Number(num % BigInt(58))] + result;
     num = num / BigInt(58);
   }
   for (const byte of bytes) {
     if (byte === 0) result = '1' + result;
     else break;
   }
-  return result;
+  return result || '1';
+}
+
+function decodeBase58(str: string): Uint8Array {
+  const ALPHABET_MAP = new Map<string, number>();
+  for (let i = 0; i < BASE58_ALPHABET.length; i++) {
+    ALPHABET_MAP.set(BASE58_ALPHABET[i], i);
+  }
+
+  let num = BigInt(0);
+  for (const char of str) {
+    const val = ALPHABET_MAP.get(char);
+    if (val === undefined) throw new Error(`Invalid base58 character: ${char}`);
+    num = num * BigInt(58) + BigInt(val);
+  }
+
+  const bytes: number[] = [];
+  while (num > 0) {
+    bytes.unshift(Number(num % BigInt(256)));
+    num = num / BigInt(256);
+  }
+
+  // Count leading '1's → leading zero bytes
+  for (const char of str) {
+    if (char !== '1') break;
+    bytes.unshift(0);
+  }
+
+  return new Uint8Array(bytes);
+}
+
+// ─── Session Encryption Keypair (for Phantom deep link flow) ───
+let sessionKeypair: nacl.BoxKeyPair | null = null;
+
+function getOrCreateSessionKeypair(): nacl.BoxKeyPair {
+  if (!sessionKeypair) {
+    sessionKeypair = nacl.box.keyPair();
+  }
+  return sessionKeypair;
+}
+
+function clearSessionKeypair(): void {
+  sessionKeypair = null;
 }
 
 // ─── Connect via Phantom ───
@@ -159,13 +203,15 @@ export async function connectPhantomWallet(): Promise<{
     }
   }
 
-  // Mobile: use deep link
+  // Mobile: use deep link with proper encryption
   try {
-    const redirectUrl = Linking.createURL('onConnect');
+    const keypair = getOrCreateSessionKeypair();
+    const dappPubKeyBase58 = encodeBase58(keypair.publicKey);
+    const redirectUrl = Linking.createURL('');
 
     const params = new URLSearchParams({
       app_url: 'https://soltix.app',
-      dapp_encryption_public_key: '', // simplified for MVP — use nacl in production
+      dapp_encryption_public_key: dappPubKeyBase58,
       redirect_link: redirectUrl,
       cluster: process.env.EXPO_PUBLIC_NETWORK || 'devnet',
     });
@@ -213,12 +259,15 @@ export async function connectSolflareWallet(): Promise<{
     }
   }
 
-  // Mobile: use deep link
+  // Mobile: use deep link with proper encryption
   try {
-    const redirectUrl = Linking.createURL('onConnect');
+    const keypair = getOrCreateSessionKeypair();
+    const dappPubKeyBase58 = encodeBase58(keypair.publicKey);
+    const redirectUrl = Linking.createURL('');
 
     const params = new URLSearchParams({
       app_url: 'https://soltix.app',
+      dapp_encryption_public_key: dappPubKeyBase58,
       redirect_link: redirectUrl,
       cluster: process.env.EXPO_PUBLIC_NETWORK || 'devnet',
     });
@@ -246,32 +295,101 @@ export async function handleWalletCallback(
 ): Promise<{ publicKey: string; balance: number } | null> {
   try {
     const parsed = Linking.parse(url);
-    const pubKeyParam =
-      parsed.queryParams?.phantom_encryption_public_key ||
-      parsed.queryParams?.public_key;
 
-    if (typeof pubKeyParam === 'string' && pubKeyParam.length > 0) {
-      // Validate the public key is a well-formed Solana address
-      let validatedKey: string;
+    // Check for error in the wallet response
+    if (parsed.queryParams?.errorCode) {
+      console.error(
+        'Wallet connection error:',
+        parsed.queryParams.errorCode,
+        parsed.queryParams.errorMessage
+      );
+      return null;
+    }
+
+    const phantomPubKeyParam = parsed.queryParams?.phantom_encryption_public_key;
+    const nonceParam = parsed.queryParams?.nonce;
+    const dataParam = parsed.queryParams?.data;
+
+    // ── Encrypted response (Phantom / Solflare deep link) ──
+    if (
+      typeof phantomPubKeyParam === 'string' &&
+      typeof nonceParam === 'string' &&
+      typeof dataParam === 'string' &&
+      sessionKeypair
+    ) {
       try {
-        const pk = new PublicKey(pubKeyParam);
-        validatedKey = pk.toBase58();
-      } catch {
-        console.error('Invalid wallet public key received:', pubKeyParam);
+        const phantomPubKeyBytes = decodeBase58(phantomPubKeyParam);
+        const nonceBytes = decodeBase58(nonceParam);
+        const dataBytes = decodeBase58(dataParam);
+
+        // Decrypt the response using nacl box
+        const decrypted = nacl.box.open(
+          dataBytes,
+          nonceBytes,
+          phantomPubKeyBytes,
+          sessionKeypair.secretKey
+        );
+
+        // Clear the session keypair after use
+        clearSessionKeypair();
+
+        if (!decrypted) {
+          console.error('Failed to decrypt wallet response');
+          return null;
+        }
+
+        // Decode the decrypted JSON — use a safe UTF-8 decoder
+        let jsonString: string;
+        if (typeof TextDecoder !== 'undefined') {
+          jsonString = new TextDecoder().decode(decrypted);
+        } else {
+          // Fallback for environments without TextDecoder
+          jsonString = Array.from(decrypted)
+            .map((b) => String.fromCharCode(b))
+            .join('');
+        }
+
+        const decoded = JSON.parse(jsonString);
+        const walletPubKey = decoded.public_key;
+
+        if (!walletPubKey || typeof walletPubKey !== 'string') {
+          console.error('No public_key in decrypted wallet response');
+          return null;
+        }
+
+        // Validate it's a proper Solana address
+        const pk = new PublicKey(walletPubKey);
+        const validatedKey = pk.toBase58();
+        const balance = await getBalance(validatedKey);
+        await setStoredWalletAddress(WALLET_KEY, validatedKey);
+
+        return { publicKey: validatedKey, balance };
+      } catch (decryptError) {
+        console.error('Error decrypting wallet callback:', decryptError);
+        clearSessionKeypair();
         return null;
       }
+    }
 
-      const balance = await getBalance(validatedKey);
-
-      // Persist the validated wallet address
-      await setStoredWalletAddress(WALLET_KEY, validatedKey);
-
-      return { publicKey: validatedKey, balance };
+    // ── Fallback: direct public_key param (some wallets) ──
+    const directPubKey = parsed.queryParams?.public_key;
+    if (typeof directPubKey === 'string' && directPubKey.length > 0) {
+      try {
+        const pk = new PublicKey(directPubKey);
+        const validatedKey = pk.toBase58();
+        const balance = await getBalance(validatedKey);
+        await setStoredWalletAddress(WALLET_KEY, validatedKey);
+        return { publicKey: validatedKey, balance };
+      } catch {
+        console.error('Invalid direct public_key received:', directPubKey);
+        return null;
+      }
     }
 
     return null;
   } catch (error) {
     console.error('Error handling wallet callback:', error);
+    clearSessionKeypair();
     return null;
   }
 }
@@ -365,7 +483,7 @@ export async function sendPayment(
       .serialize({ requireAllSignatures: false })
       .toString('base64');
 
-    const redirectUrl = Linking.createURL('onSignTransaction');
+    const redirectUrl = Linking.createURL('');
 
     const params = new URLSearchParams({
       transaction: serializedTx,

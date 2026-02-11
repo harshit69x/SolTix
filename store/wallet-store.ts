@@ -1,4 +1,5 @@
 import { getBalance } from '@/services/solana';
+import { upsertProfile } from '@/services/profile-service';
 import {
   connectPhantomWallet,
   connectSolflareWallet,
@@ -50,6 +51,12 @@ export const useWalletStore = create<WalletStore>((set, get) => ({
       // On mobile, result is null — connection completes via deep link callback.
       if (result) {
         await saveWalletAddress(result.publicKey);
+
+        // Save wallet to Supabase profiles table
+        upsertProfile(result.publicKey).catch((err) =>
+          console.error('Failed to save profile to Supabase:', err)
+        );
+
         set({
           connected: true,
           publicKey: result.publicKey,
@@ -73,6 +80,11 @@ export const useWalletStore = create<WalletStore>((set, get) => ({
     try {
       const balance = await getBalance(address);
       await saveWalletAddress(address);
+
+      // Save wallet to Supabase profiles table
+      upsertProfile(address).catch((err) =>
+        console.error('Failed to save profile to Supabase:', err)
+      );
 
       set({
         connected: true,
@@ -122,6 +134,11 @@ export const useWalletStore = create<WalletStore>((set, get) => ({
     try {
       const saved = await restoreSavedWallet();
       if (saved) {
+        // Ensure profile exists in Supabase on session restore too
+        upsertProfile(saved.publicKey).catch((err) =>
+          console.error('Failed to save profile to Supabase on restore:', err)
+        );
+
         set({
           connected: true,
           publicKey: saved.publicKey,
