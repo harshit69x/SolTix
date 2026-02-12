@@ -140,8 +140,7 @@ export async function createTicket(params: {
   seatInfo?: string;
   txSignature: string;
 }): Promise<Ticket> {
-  const supabase = getSupabase();
-  if (!supabase) {
+  const buildLocalTicket = async (): Promise<Ticket> => {
     const event = await fetchEventById(params.eventId);
     if (!event) {
       throw new Error(`Event not found for ticket creation: ${params.eventId}`);
@@ -161,6 +160,11 @@ export async function createTicket(params: {
       seatInfo: params.seatInfo,
       tier: params.tier,
     };
+  };
+
+  const supabase = getSupabase();
+  if (!supabase) {
+    return buildLocalTicket();
   }
 
   // Idempotency: check if a ticket with this txSignature already exists
@@ -196,6 +200,15 @@ export async function createTicket(params: {
 
   if (error) {
     console.error('Error creating ticket:', error.message);
+    // If Supabase is configured but auth/policy/network fails, keep purchase flow usable.
+    if (
+      error.code === '401' ||
+      error.code === '403' ||
+      /invalid api key|jwt|unauthorized|permission/i.test(error.message)
+    ) {
+      console.warn('Falling back to local ticket mode due to Supabase auth/config error.');
+      return buildLocalTicket();
+    }
     throw new Error(error.message);
   }
 

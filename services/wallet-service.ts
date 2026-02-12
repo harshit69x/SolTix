@@ -545,7 +545,15 @@ export async function handleWalletCallback(
               skipPreflight: false,
               preflightCommitment: 'confirmed',
             });
-            await connection.confirmTransaction(submittedSignature, 'confirmed');
+            const confirmation = await connection.confirmTransaction(
+              submittedSignature,
+              'confirmed'
+            );
+            if (confirmation.value.err) {
+              throw new Error(
+                `Transaction failed on-chain: ${JSON.stringify(confirmation.value.err)}`
+              );
+            }
 
             // Store the successful signature so the UI can pick it up
             await setStoredValue(LAST_TX_SIGNATURE_KEY, submittedSignature);
@@ -749,7 +757,10 @@ export async function sendPayment(
       }
 
       const { signature } = await provider.signAndSendTransaction(transaction);
-      await confirmTransaction(signature, blockhash, lastValidBlockHeight);
+      const confirmed = await confirmTransaction(signature, blockhash, lastValidBlockHeight);
+      if (!confirmed) {
+        throw new Error('Transaction was not confirmed on-chain.');
+      }
       return { signature, success: true };
     }
 

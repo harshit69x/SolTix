@@ -159,9 +159,8 @@ export default function EventDetailScreen() {
           txSignature: result.signature,
         });
       } catch (ticketError) {
-        // Payment succeeded but ticket recording failed — log for manual reconciliation
         console.error('Ticket recording failed after successful payment. Tx:', result.signature, ticketError);
-        // Still show success since payment went through
+        throw new Error('Payment succeeded but ticket creation failed. Please retry to sync your ticket.');
       }
 
       setTxState('success');
