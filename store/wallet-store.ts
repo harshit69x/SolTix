@@ -1,13 +1,12 @@
 import { getBalance } from '@/services/solana';
 import { upsertProfile } from '@/services/profile-service';
 import {
-  connectBackpackWallet,
-  connectGlowWallet,
   connectPhantomWallet,
   connectSolflareWallet,
   disconnectWallet as disconnectWalletService,
   restoreSavedWallet,
   saveWalletAddress,
+  type WalletProvider,
 } from '@/services/wallet-service';
 import { create } from 'zustand';
 
@@ -20,7 +19,7 @@ interface WalletStore {
   walletProvider: string | null;
   sessionVersion: number;
 
-  connect: (provider?: string) => Promise<void>;
+  connect: (provider?: WalletProvider['id']) => Promise<void>;
   connectWithAddress: (address: string) => Promise<void>;
   disconnect: () => Promise<void>;
   refreshBalance: () => Promise<void>;
@@ -47,10 +46,6 @@ export const useWalletStore = create<WalletStore>((set, get) => ({
         result = await connectPhantomWallet();
       } else if (provider === 'solflare') {
         result = await connectSolflareWallet();
-      } else if (provider === 'backpack') {
-        result = await connectBackpackWallet();
-      } else if (provider === 'glow') {
-        result = await connectGlowWallet();
       } else {
         throw new Error(`Unsupported wallet provider: ${provider}`);
       }
@@ -71,8 +66,9 @@ export const useWalletStore = create<WalletStore>((set, get) => ({
           balance: result.balance,
           connecting: false,
         });
-      } else if (provider === 'backpack' || provider === 'glow') {
-        // These providers are deep-link redirects only right now.
+      } else {
+        // Mobile deep-link flow may complete asynchronously via callback.
+        // Keep UI interactive so users can retry if wallet app does not return.
         set({ connecting: false });
       }
     } catch (error: any) {

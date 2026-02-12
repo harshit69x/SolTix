@@ -13,8 +13,8 @@ export function WalletModal({ visible, onClose }: WalletModalProps) {
   const LEGAL_URL = 'https://aman124598.github.io/SolTix/';
   const { connect, connecting, error, clearError } = useWalletStore();
 
-  const handleConnect = async (providerName: string) => {
-    await connect(providerName.toLowerCase());
+  const handleConnect = async (providerId: 'phantom' | 'solflare') => {
+    await connect(providerId);
     // Connection completes via deep link callback — don't close yet
     // The root layout's deep link handler will call connectWithAddress
   };
@@ -68,7 +68,7 @@ export function WalletModal({ visible, onClose }: WalletModalProps) {
               {WALLET_PROVIDERS.map((wallet) => (
                 <TouchableOpacity
                   key={wallet.name}
-                  onPress={() => handleConnect(wallet.name)}
+                  onPress={() => handleConnect(wallet.id)}
                   className="flex-row items-center bg-surface-card rounded-xl p-4 mb-3"
                   activeOpacity={0.7}
                 >

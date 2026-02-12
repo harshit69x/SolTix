@@ -86,6 +86,7 @@ async function deleteStoredWalletAddress(key: string): Promise<void> {
 
 // ─── Supported Wallets ───
 export interface WalletProvider {
+  id: 'phantom' | 'solflare';
   name: string;
   icon: string;
   scheme: string; // deep link scheme
@@ -95,6 +96,7 @@ export interface WalletProvider {
 
 export const WALLET_PROVIDERS: WalletProvider[] = [
   {
+    id: 'phantom',
     name: 'Phantom',
     icon: '👻',
     scheme: 'phantom',
@@ -102,25 +104,12 @@ export const WALLET_PROVIDERS: WalletProvider[] = [
     popular: true,
   },
   {
+    id: 'solflare',
     name: 'Solflare',
     icon: '🔥',
     scheme: 'solflare',
     connectUrl: 'https://solflare.com/ul/v1/connect',
     popular: true,
-  },
-  {
-    name: 'Backpack',
-    icon: '🎒',
-    scheme: 'backpack',
-    connectUrl: 'https://backpack.app/ul/v1/connect',
-    popular: false,
-  },
-  {
-    name: 'Glow',
-    icon: '✨',
-    scheme: 'glow',
-    connectUrl: 'glow://connect',
-    popular: false,
   },
 ];
 
@@ -229,8 +218,20 @@ async function openWalletDeepLinkWithFallback(
   }
 
   try {
-    await Linking.openURL(schemeUrl);
-  } catch (schemeError) {
+    const canOpenScheme = await Linking.canOpenURL(schemeUrl);
+    if (canOpenScheme) {
+      await Linking.openURL(schemeUrl);
+      return;
+    }
+
+    const canOpenUniversal = await Linking.canOpenURL(universalUrl);
+    if (canOpenUniversal) {
+      await Linking.openURL(universalUrl);
+      return;
+    }
+
+    throw new Error(`${walletName} app is not installed or cannot be opened on this device.`);
+  } catch {
     throw new Error(`${walletName} app is not installed or cannot be opened on this device.`);
   }
 }
@@ -376,7 +377,7 @@ export async function connectPhantomWallet(): Promise<{
       cluster: process.env.EXPO_PUBLIC_NETWORK || 'devnet',
     });
 
-    const schemeConnectUrl = `phantom://ul/v1/connect?${params.toString()}`;
+    const schemeConnectUrl = `phantom://v1/connect?${params.toString()}`;
     const universalConnectUrl = `https://phantom.app/ul/v1/connect?${params.toString()}`;
 
     await openWalletDeepLinkWithFallback(schemeConnectUrl, universalConnectUrl, 'Phantom');
@@ -437,51 +438,6 @@ export async function connectSolflareWallet(): Promise<{
   }
 }
 
-// ─── Connect via Backpack (deep link redirect) ───
-export async function connectBackpackWallet(): Promise<{
-  publicKey: string;
-  balance: number;
-} | null> {
-  try {
-    const redirectUrl = getWalletCallbackUrl();
-    const params = new URLSearchParams({
-      redirect_link: redirectUrl,
-      cluster: process.env.EXPO_PUBLIC_NETWORK || 'devnet',
-      app_url: 'https://soltix.app',
-    });
-
-    const schemeConnectUrl = `backpack://ul/v1/connect?${params.toString()}`;
-    const universalConnectUrl = `https://backpack.app/ul/v1/connect?${params.toString()}`;
-    await openWalletDeepLinkWithFallback(schemeConnectUrl, universalConnectUrl, 'Backpack');
-    return null;
-  } catch (error) {
-    console.error('Error connecting Backpack:', error);
-    throw new Error('Failed to connect to Backpack wallet');
-  }
-}
-
-// ─── Connect via Glow (deep link redirect) ───
-export async function connectGlowWallet(): Promise<{
-  publicKey: string;
-  balance: number;
-} | null> {
-  try {
-    const redirectUrl = getWalletCallbackUrl();
-    const params = new URLSearchParams({
-      redirect_link: redirectUrl,
-      cluster: process.env.EXPO_PUBLIC_NETWORK || 'devnet',
-      app_url: 'https://soltix.app',
-    });
-
-    const schemeConnectUrl = `glow://connect?${params.toString()}`;
-    const universalConnectUrl = `https://glow.app`;
-    await openWalletDeepLinkWithFallback(schemeConnectUrl, universalConnectUrl, 'Glow');
-    return null;
-  } catch (error) {
-    console.error('Error connecting Glow:', error);
-    throw new Error('Failed to connect to Glow wallet');
-  }
-}
 
 // ─── Handle Deep Link Callback ───
 export async function handleWalletCallback(
@@ -808,7 +764,7 @@ export async function sendPayment(
     });
 
     // Use signTransaction — Phantom returns the signed tx, we submit it in the callback
-    const signSchemeUrl = `phantom://ul/v1/signTransaction?${params.toString()}`;
+    const signSchemeUrl = `phantom://v1/signTransaction?${params.toString()}`;
     const signUniversalUrl = `https://phantom.app/ul/v1/signTransaction?${params.toString()}`;
 
     if (pendingPayment) {
