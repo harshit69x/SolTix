@@ -65,8 +65,6 @@ export const useWalletStore = create<WalletStore>((set, get) => ({
           balance: result.balance,
           connecting: false,
         });
-      } else {
-        set({ connecting: false });
       }
     } catch (error: any) {
       set({

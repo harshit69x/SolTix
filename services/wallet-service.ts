@@ -213,6 +213,11 @@ function waitForConnectCallback(): Promise<void> {
   });
 }
 
+function getWalletCallbackUrl(): string {
+  // Use explicit app scheme for mobile wallet deep links.
+  return Linking.createURL('wallet-callback', { scheme: 'soltix' });
+}
+
 async function openWalletDeepLinkWithFallback(
   schemeUrl: string,
   universalUrl: string
@@ -359,7 +364,7 @@ export async function connectPhantomWallet(): Promise<{
   try {
     const keypair = await getOrCreateSessionKeypair();
     const dappPubKeyBase58 = toBase58(keypair.publicKey);
-    const redirectUrl = Linking.createURL('wallet-callback');
+    const redirectUrl = getWalletCallbackUrl();
 
     const params = new URLSearchParams({
       app_url: 'https://soltix.app',
@@ -409,7 +414,7 @@ export async function connectSolflareWallet(): Promise<{
   try {
     const keypair = await getOrCreateSessionKeypair();
     const dappPubKeyBase58 = toBase58(keypair.publicKey);
-    const redirectUrl = Linking.createURL('wallet-callback');
+    const redirectUrl = getWalletCallbackUrl();
 
     const params = new URLSearchParams({
       app_url: 'https://soltix.app',
@@ -744,7 +749,7 @@ export async function sendPayment(
     const nonce = nacl.randomBytes(nacl.box.nonceLength);
     const encodedPayload = new TextEncoder().encode(JSON.stringify(payload));
     const encryptedPayload = nacl.box.after(encodedPayload, nonce, sharedSecret);
-    const redirectUrl = Linking.createURL('wallet-callback');
+    const redirectUrl = getWalletCallbackUrl();
 
     const params = new URLSearchParams({
       dapp_encryption_public_key: toBase58(sessionKeypair.publicKey),
