@@ -4,13 +4,14 @@ import * as Linking from 'expo-linking';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
+import { Alert } from 'react-native';
 import 'react-native-reanimated';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import '@/global.css';
 
 export default function RootLayout() {
-  const { connectWithAddress, restoreSession } = useWalletStore();
+  const { connectWithAddress, restoreSession, refreshBalance } = useWalletStore();
 
   // Restore saved wallet session on app launch
   useEffect(() => {
@@ -23,6 +24,24 @@ export default function RootLayout() {
       try {
         const result = await handleWalletCallback(event.url);
         if (result) {
+          // Check if this is a payment callback (publicKey starts with "tx:")
+          if (result.publicKey.startsWith('tx:')) {
+            const signature = result.publicKey.replace('tx:', '');
+            // Refresh balance after payment
+            refreshBalance();
+            if (signature === 'failed') {
+              Alert.alert('Transaction Failed', 'The transaction could not be submitted. Please try again.');
+            } else {
+              Alert.alert(
+                'Payment Successful!',
+                `Transaction confirmed on Solana.\n\nSignature: ${signature.slice(0, 20)}...`,
+                [{ text: 'OK' }]
+              );
+            }
+            return;
+          }
+
+          // Otherwise it's a wallet connect callback
           await connectWithAddress(result.publicKey);
         }
       } catch (error) {

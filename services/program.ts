@@ -3,9 +3,10 @@ import { Program, AnchorProvider, BN } from '@coral-xyz/anchor';
 import { PublicKey, SystemProgram, SYSVAR_RENT_PUBKEY } from '@solana/web3.js';
 import { TOKEN_PROGRAM_ID, ASSOCIATED_TOKEN_PROGRAM_ID, getAssociatedTokenAddress } from '@solana/spl-token';
 import { connection } from './solana';
+import idl from '../app/idl/soltix_program.json';
 
 // Program ID from Anchor.toml
-export const PROGRAM_ID = new PublicKey('Fg6PaFpoGXkYsidMpWTK6W2BeZ7FEfcYkg476zPFsLnS');
+export const PROGRAM_ID = new PublicKey('QoWSByU5eAUTSrZebW1q8xRMuAkuvgsiqwEZ16EVRHJ');
 
 // IDL Type (you'll generate this with anchor build)
 export interface SoltixProgram {
@@ -114,7 +115,7 @@ export async function listTicket(
   price: number // in SOL
 ): Promise<string> {
   const owner = provider.wallet.publicKey;
-  
+
   // Get ticket data to find event
   const ticketAccount = await program.account.ticket.fetch(ticketPDA);
   const priceLamports = new BN(price * anchor.web3.LAMPORTS_PER_SOL);
@@ -270,10 +271,8 @@ export function initializeProgram(wallet: any): { provider: AnchorProvider; prog
     AnchorProvider.defaultOptions()
   );
 
-  // You'll need to import the IDL after building
-  // For now, this is a placeholder
   const program = new Program(
-    {} as any, // IDL will be imported from target/idl/soltix_program.json
+    idl as any,
     PROGRAM_ID,
     provider
   );

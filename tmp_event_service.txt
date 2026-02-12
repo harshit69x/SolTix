@@ -1,37 +1,9 @@
-import { PublicKey } from '@solana/web3.js';
 import { supabase } from '@/services/supabase';
 import { EventCategory, EventData } from '@/types';
 import type { EventRow } from '@/types/database';
 
-const DEV_FALLBACK_ORGANIZER_WALLET = process.env.EXPO_PUBLIC_DEV_FALLBACK_ORGANIZER_WALLET?.trim() || '';
-
-function isValidWalletAddress(address: string): boolean {
-  try {
-    new PublicKey(address);
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-function getNormalizedOrganizerWallet(row: EventRow): string | null {
-  if (isValidWalletAddress(row.organizer_wallet)) {
-    return row.organizer_wallet;
-  }
-
-  if (DEV_FALLBACK_ORGANIZER_WALLET && isValidWalletAddress(DEV_FALLBACK_ORGANIZER_WALLET)) {
-    console.warn(
-      `Event ${row.id} has invalid organizer wallet "${row.organizer_wallet}". Using EXPO_PUBLIC_DEV_FALLBACK_ORGANIZER_WALLET for dev mode.`
-    );
-    return DEV_FALLBACK_ORGANIZER_WALLET;
-  }
-
-  console.warn(`Skipping event with invalid organizer wallet and no valid fallback configured: ${row.id}`);
-  return null;
-}
-
 // ─── Row → App Model Mapper ───
-function mapEventRow(row: EventRow, organizerWallet: string): EventData {
+function mapEventRow(row: EventRow): EventData {
   return {
     id: row.id,
     title: row.title,
@@ -41,7 +13,7 @@ function mapEventRow(row: EventRow, organizerWallet: string): EventData {
     venue: row.venue,
     location: row.location,
     imageUrl: row.image_url,
-    organizerWallet,
+    organizerWallet: row.organizer_wallet,
     organizerName: row.organizer_name,
     ticketPrice: Number(row.ticket_price),
     totalTickets: row.total_tickets,
@@ -53,14 +25,6 @@ function mapEventRow(row: EventRow, organizerWallet: string): EventData {
     metadataUri: row.metadata_uri,
     createdAt: row.created_at,
   };
-}
-
-function mapAndFilterValidEvents(rows: EventRow[]): EventData[] {
-  return rows.flatMap((row) => {
-    const organizerWallet = getNormalizedOrganizerWallet(row);
-    if (!organizerWallet) return [];
-    return [mapEventRow(row, organizerWallet)];
-  });
 }
 
 // ─── Fetch All Events ───
@@ -75,7 +39,7 @@ export async function fetchAllEvents(): Promise<EventData[]> {
     throw new Error(error.message);
   }
 
-  return mapAndFilterValidEvents(data || []);
+  return (data || []).map(mapEventRow);
 }
 
 // ─── Fetch Events by Category ───
@@ -91,7 +55,7 @@ export async function fetchEventsByCategory(category: EventCategory): Promise<Ev
     throw new Error(error.message);
   }
 
-  return mapAndFilterValidEvents(data || []);
+  return (data || []).map(mapEventRow);
 }
 
 // ─── Fetch Single Event ───
@@ -108,12 +72,7 @@ export async function fetchEventById(id: string): Promise<EventData | null> {
     throw new Error(error.message);
   }
 
-  if (!data) return null;
-  const organizerWallet = getNormalizedOrganizerWallet(data);
-  if (!organizerWallet) {
-    return null;
-  }
-  return mapEventRow(data, organizerWallet);
+  return data ? mapEventRow(data) : null;
 }
 
 // ─── Search Events ───
@@ -144,7 +103,7 @@ export async function searchEvents(query: string, category?: EventCategory): Pro
     throw new Error(error.message);
   }
 
-  return mapAndFilterValidEvents(data || []);
+  return (data || []).map(mapEventRow);
 }
 
 // ─── Fetch Upcoming Events ───
@@ -164,14 +123,14 @@ export async function fetchUpcomingEvents(limit = 10): Promise<EventData[]> {
     throw new Error(error.message);
   }
 
-  return mapAndFilterValidEvents(data || []);
+  return (data || []).map(mapEventRow);
 }
 
 // ─── Increment Tickets Sold (after purchase) ───
 // NOTE: The DB trigger `on_ticket_created` auto-increments tickets_sold on INSERT.
 // This manual function is kept as an RPC fallback. Prefer relying on the trigger.
 export async function incrementTicketsSold(eventId: string): Promise<void> {
-  const { error } = await supabase.rpc('increment_tickets_sold_rpc', {
+  const { data, error } = await supabase.rpc('increment_tickets_sold_rpc', {
     p_event_id: eventId,
   });
 

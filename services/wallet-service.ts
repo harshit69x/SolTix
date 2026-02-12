@@ -1,4 +1,7 @@
+import 'react-native-get-random-values';
 import { PublicKey } from '@solana/web3.js';
+import bs58 from 'bs58';
+import * as Crypto from 'expo-crypto';
 import * as Linking from 'expo-linking';
 import * as SecureStore from 'expo-secure-store';
 import nacl from 'tweetnacl';
@@ -6,6 +9,7 @@ import { Platform } from 'react-native';
 
 import {
   buildTransferTransaction,
+  connection,
   confirmTransaction,
   getBalance
 } from '@/services/solana';
@@ -39,6 +43,11 @@ function getSolflareProvider(): SolanaProvider | null {
 }
 
 const WALLET_KEY = 'soltix_wallet_address';
+const WALLET_SESSION_KEY = 'soltix_wallet_session';
+const PHANTOM_ENCRYPTION_KEY = 'soltix_phantom_encryption_public_key';
+const DAPP_SECRET_KEY = 'soltix_dapp_secret_key';
+const DAPP_PUBLIC_KEY = 'soltix_dapp_public_key';
+const LAST_TX_SIGNATURE_KEY = 'soltix_last_tx_signature';
 
 async function getStoredWalletAddress(key: string): Promise<string | null> {
   if (isWeb()) {
@@ -115,66 +124,195 @@ export const WALLET_PROVIDERS: WalletProvider[] = [
   },
 ];
 
-// ─── Base58 Encode / Decode ───
-const BASE58_ALPHABET = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
-
-function encodeBase58(bytes: Uint8Array): string {
-  let result = '';
-  let num = BigInt(0);
-  for (const byte of bytes) {
-    num = num * BigInt(256) + BigInt(byte);
-  }
-  while (num > 0) {
-    result = BASE58_ALPHABET[Number(num % BigInt(58))] + result;
-    num = num / BigInt(58);
-  }
-  for (const byte of bytes) {
-    if (byte === 0) result = '1' + result;
-    else break;
-  }
-  return result || '1';
-}
-
-function decodeBase58(str: string): Uint8Array {
-  const ALPHABET_MAP = new Map<string, number>();
-  for (let i = 0; i < BASE58_ALPHABET.length; i++) {
-    ALPHABET_MAP.set(BASE58_ALPHABET[i], i);
-  }
-
-  let num = BigInt(0);
-  for (const char of str) {
-    const val = ALPHABET_MAP.get(char);
-    if (val === undefined) throw new Error(`Invalid base58 character: ${char}`);
-    num = num * BigInt(58) + BigInt(val);
-  }
-
-  const bytes: number[] = [];
-  while (num > 0) {
-    bytes.unshift(Number(num % BigInt(256)));
-    num = num / BigInt(256);
-  }
-
-  // Count leading '1's → leading zero bytes
-  for (const char of str) {
-    if (char !== '1') break;
-    bytes.unshift(0);
-  }
-
-  return new Uint8Array(bytes);
-}
-
 // ─── Session Encryption Keypair (for Phantom deep link flow) ───
 let sessionKeypair: nacl.BoxKeyPair | null = null;
-
-function getOrCreateSessionKeypair(): nacl.BoxKeyPair {
-  if (!sessionKeypair) {
-    sessionKeypair = nacl.box.keyPair();
+let walletSession: string | null = null;
+let phantomEncryptionPublicKey: Uint8Array | null = null;
+let sessionArtifactsLoaded = false;
+let pendingPayment:
+  | {
+    resolve: (value: { signature: string; success: boolean }) => void;
+    reject: (reason?: unknown) => void;
+    timeoutId: ReturnType<typeof setTimeout>;
   }
-  return sessionKeypair;
+  | null = null;
+let pendingConnect:
+  | {
+    resolve: () => void;
+    reject: (reason?: unknown) => void;
+    timeoutId: ReturnType<typeof setTimeout>;
+  }
+  | null = null;
+let naclPrngConfigured = false;
+
+function ensureNaclPrng(): void {
+  if (naclPrngConfigured) return;
+  nacl.setPRNG((x: Uint8Array, n: number) => {
+    x.set(Crypto.getRandomBytes(n));
+  });
+  naclPrngConfigured = true;
 }
 
 function clearSessionKeypair(): void {
   sessionKeypair = null;
+}
+
+function clearWalletSession(): void {
+  walletSession = null;
+  phantomEncryptionPublicKey = null;
+}
+
+function toBase58(bytes: Uint8Array): string {
+  return bs58.encode(bytes);
+}
+
+function fromBase58(value: string): Uint8Array {
+  return bs58.decode(value);
+}
+
+function clearPendingPayment(): void {
+  if (!pendingPayment) return;
+  clearTimeout(pendingPayment.timeoutId);
+  pendingPayment = null;
+}
+
+function rejectPendingPayment(message: string): void {
+  if (!pendingPayment) return;
+  pendingPayment.reject(new Error(message));
+  clearPendingPayment();
+}
+
+function clearPendingConnect(): void {
+  if (!pendingConnect) return;
+  clearTimeout(pendingConnect.timeoutId);
+  pendingConnect = null;
+}
+
+function resolvePendingConnect(): void {
+  if (!pendingConnect) return;
+  pendingConnect.resolve();
+  clearPendingConnect();
+}
+
+function rejectPendingConnect(message: string): void {
+  if (!pendingConnect) return;
+  pendingConnect.reject(new Error(message));
+  clearPendingConnect();
+}
+
+function waitForConnectCallback(): Promise<void> {
+  if (pendingConnect) {
+    rejectPendingConnect('A new wallet connection request has started');
+  }
+
+  return new Promise<void>((resolve, reject) => {
+    const timeoutId = setTimeout(() => {
+      rejectPendingConnect('Wallet connection timed out. Please try again.');
+    }, 120000);
+    pendingConnect = { resolve, reject, timeoutId };
+  });
+}
+
+async function getStoredValue(key: string): Promise<string | null> {
+  if (isWeb()) {
+    if (typeof window === 'undefined' || !window.localStorage) {
+      return null;
+    }
+    return window.localStorage.getItem(key);
+  }
+
+  return SecureStore.getItemAsync(key);
+}
+
+async function setStoredValue(key: string, value: string): Promise<void> {
+  if (isWeb()) {
+    if (typeof window === 'undefined' || !window.localStorage) {
+      return;
+    }
+    window.localStorage.setItem(key, value);
+    return;
+  }
+
+  await SecureStore.setItemAsync(key, value);
+}
+
+async function deleteStoredValue(key: string): Promise<void> {
+  if (isWeb()) {
+    if (typeof window === 'undefined' || !window.localStorage) {
+      return;
+    }
+    window.localStorage.removeItem(key);
+    return;
+  }
+
+  await SecureStore.deleteItemAsync(key);
+}
+
+async function persistSessionKeypair(keypair: nacl.BoxKeyPair): Promise<void> {
+  await Promise.all([
+    setStoredValue(DAPP_PUBLIC_KEY, toBase58(keypair.publicKey)),
+    setStoredValue(DAPP_SECRET_KEY, toBase58(keypair.secretKey)),
+  ]);
+}
+
+async function persistWalletSessionArtifacts(): Promise<void> {
+  if (!walletSession || !phantomEncryptionPublicKey) return;
+
+  await Promise.all([
+    setStoredValue(WALLET_SESSION_KEY, walletSession),
+    setStoredValue(PHANTOM_ENCRYPTION_KEY, toBase58(phantomEncryptionPublicKey)),
+  ]);
+}
+
+async function clearPersistedSessionArtifacts(): Promise<void> {
+  await Promise.all([
+    deleteStoredValue(WALLET_SESSION_KEY),
+    deleteStoredValue(PHANTOM_ENCRYPTION_KEY),
+    deleteStoredValue(DAPP_SECRET_KEY),
+    deleteStoredValue(DAPP_PUBLIC_KEY),
+  ]);
+  sessionArtifactsLoaded = false;
+}
+
+async function loadPersistedSessionArtifacts(): Promise<void> {
+  if (sessionArtifactsLoaded) return;
+  sessionArtifactsLoaded = true;
+
+  try {
+    const [session, phantomKeyB58, dappPublicB58, dappSecretB58] = await Promise.all([
+      getStoredValue(WALLET_SESSION_KEY),
+      getStoredValue(PHANTOM_ENCRYPTION_KEY),
+      getStoredValue(DAPP_PUBLIC_KEY),
+      getStoredValue(DAPP_SECRET_KEY),
+    ]);
+
+    if (session && phantomKeyB58) {
+      walletSession = session;
+      phantomEncryptionPublicKey = fromBase58(phantomKeyB58);
+    }
+
+    if (dappPublicB58 && dappSecretB58) {
+      sessionKeypair = {
+        publicKey: fromBase58(dappPublicB58),
+        secretKey: fromBase58(dappSecretB58),
+      };
+    }
+  } catch (error) {
+    console.error('Failed to restore wallet session artifacts:', error);
+    clearSessionKeypair();
+    clearWalletSession();
+    await clearPersistedSessionArtifacts();
+  }
+}
+
+async function getOrCreateSessionKeypair(): Promise<nacl.BoxKeyPair> {
+  ensureNaclPrng();
+  await loadPersistedSessionArtifacts();
+  if (!sessionKeypair) {
+    sessionKeypair = nacl.box.keyPair();
+    await persistSessionKeypair(sessionKeypair);
+  }
+  return sessionKeypair;
 }
 
 // ─── Connect via Phantom ───
@@ -205,9 +343,9 @@ export async function connectPhantomWallet(): Promise<{
 
   // Mobile: use deep link with proper encryption
   try {
-    const keypair = getOrCreateSessionKeypair();
-    const dappPubKeyBase58 = encodeBase58(keypair.publicKey);
-    const redirectUrl = Linking.createURL('');
+    const keypair = await getOrCreateSessionKeypair();
+    const dappPubKeyBase58 = toBase58(keypair.publicKey);
+    const redirectUrl = Linking.createURL('wallet-callback');
 
     const params = new URLSearchParams({
       app_url: 'https://soltix.app',
@@ -216,15 +354,16 @@ export async function connectPhantomWallet(): Promise<{
       cluster: process.env.EXPO_PUBLIC_NETWORK || 'devnet',
     });
 
-    const connectUrl = `https://phantom.app/ul/v1/connect?${params.toString()}`;
+    const schemeConnectUrl = `phantom://ul/v1/connect?${params.toString()}`;
+    const universalConnectUrl = `https://phantom.app/ul/v1/connect?${params.toString()}`;
 
     const supported = await Linking.canOpenURL('phantom://');
 
     if (supported) {
-      await Linking.openURL(connectUrl);
+      await Linking.openURL(schemeConnectUrl);
       return null; // Will be resolved via deep link callback
     } else {
-      await Linking.openURL('https://phantom.app/download');
+      await Linking.openURL(universalConnectUrl);
       return null;
     }
   } catch (error) {
@@ -261,9 +400,9 @@ export async function connectSolflareWallet(): Promise<{
 
   // Mobile: use deep link with proper encryption
   try {
-    const keypair = getOrCreateSessionKeypair();
-    const dappPubKeyBase58 = encodeBase58(keypair.publicKey);
-    const redirectUrl = Linking.createURL('');
+    const keypair = await getOrCreateSessionKeypair();
+    const dappPubKeyBase58 = toBase58(keypair.publicKey);
+    const redirectUrl = Linking.createURL('wallet-callback');
 
     const params = new URLSearchParams({
       app_url: 'https://soltix.app',
@@ -272,15 +411,16 @@ export async function connectSolflareWallet(): Promise<{
       cluster: process.env.EXPO_PUBLIC_NETWORK || 'devnet',
     });
 
-    const connectUrl = `https://solflare.com/ul/v1/connect?${params.toString()}`;
+    const schemeConnectUrl = `solflare://ul/v1/connect?${params.toString()}`;
+    const universalConnectUrl = `https://solflare.com/ul/v1/connect?${params.toString()}`;
 
     const supported = await Linking.canOpenURL('solflare://');
 
     if (supported) {
-      await Linking.openURL(connectUrl);
+      await Linking.openURL(schemeConnectUrl);
       return null;
     } else {
-      await Linking.openURL('https://solflare.com/download');
+      await Linking.openURL(universalConnectUrl);
       return null;
     }
   } catch (error) {
@@ -294,10 +434,17 @@ export async function handleWalletCallback(
   url: string
 ): Promise<{ publicKey: string; balance: number } | null> {
   try {
+    await loadPersistedSessionArtifacts();
     const parsed = Linking.parse(url);
 
     // Check for error in the wallet response
     if (parsed.queryParams?.errorCode) {
+      rejectPendingConnect(
+        `Wallet error: ${String(parsed.queryParams.errorCode)}${parsed.queryParams.errorMessage ? ` - ${String(parsed.queryParams.errorMessage)}` : ''}`
+      );
+      rejectPendingPayment(
+        `Wallet error: ${String(parsed.queryParams.errorCode)}${parsed.queryParams.errorMessage ? ` - ${String(parsed.queryParams.errorMessage)}` : ''}`
+      );
       console.error(
         'Wallet connection error:',
         parsed.queryParams.errorCode,
@@ -318,9 +465,9 @@ export async function handleWalletCallback(
       sessionKeypair
     ) {
       try {
-        const phantomPubKeyBytes = decodeBase58(phantomPubKeyParam);
-        const nonceBytes = decodeBase58(nonceParam);
-        const dataBytes = decodeBase58(dataParam);
+        const phantomPubKeyBytes = fromBase58(phantomPubKeyParam);
+        const nonceBytes = fromBase58(nonceParam);
+        const dataBytes = fromBase58(dataParam);
 
         // Decrypt the response using nacl box
         const decrypted = nacl.box.open(
@@ -329,9 +476,6 @@ export async function handleWalletCallback(
           phantomPubKeyBytes,
           sessionKeypair.secretKey
         );
-
-        // Clear the session keypair after use
-        clearSessionKeypair();
 
         if (!decrypted) {
           console.error('Failed to decrypt wallet response');
@@ -351,10 +495,62 @@ export async function handleWalletCallback(
 
         const decoded = JSON.parse(jsonString);
         const walletPubKey = decoded.public_key;
+        const sessionToken = decoded.session;
+        const signedTransaction = decoded.transaction;
+        const signature = decoded.signature;
+
+        // ── Signed transaction returned from signTransaction ──
+        if (typeof signedTransaction === 'string') {
+          try {
+            const signedTxBytes = fromBase58(signedTransaction);
+            const submittedSignature = await connection.sendRawTransaction(signedTxBytes, {
+              skipPreflight: false,
+              preflightCommitment: 'confirmed',
+            });
+            await connection.confirmTransaction(submittedSignature, 'confirmed');
+
+            // Store the successful signature so the UI can pick it up
+            await setStoredValue(LAST_TX_SIGNATURE_KEY, submittedSignature);
+
+            if (pendingPayment) {
+              pendingPayment.resolve({ signature: submittedSignature, success: true });
+              clearPendingPayment();
+            }
+
+            // Return a special marker so the deep link handler in _layout knows
+            // this was a successful payment (not a wallet connect)
+            return { publicKey: `tx:${submittedSignature}`, balance: 0 };
+          } catch (submitError) {
+            console.error('Failed to submit signed transaction:', submitError);
+            if (pendingPayment) {
+              rejectPendingPayment('Failed to submit signed transaction');
+            }
+            return { publicKey: 'tx:failed', balance: 0 };
+          }
+        }
+
+        // ── Direct signature returned from signAndSendTransaction ──
+        if (typeof signature === 'string') {
+          await setStoredValue(LAST_TX_SIGNATURE_KEY, signature);
+
+          if (pendingPayment) {
+            pendingPayment.resolve({ signature, success: true });
+            clearPendingPayment();
+          }
+
+          return { publicKey: `tx:${signature}`, balance: 0 };
+        }
 
         if (!walletPubKey || typeof walletPubKey !== 'string') {
           console.error('No public_key in decrypted wallet response');
           return null;
+        }
+
+        if (typeof sessionToken === 'string' && sessionToken.length > 0) {
+          walletSession = sessionToken;
+          phantomEncryptionPublicKey = phantomPubKeyBytes;
+          await persistWalletSessionArtifacts();
+          resolvePendingConnect();
         }
 
         // Validate it's a proper Solana address
@@ -367,6 +563,9 @@ export async function handleWalletCallback(
       } catch (decryptError) {
         console.error('Error decrypting wallet callback:', decryptError);
         clearSessionKeypair();
+        clearWalletSession();
+        await clearPersistedSessionArtifacts();
+        rejectPendingConnect('Wallet callback decryption failed');
         return null;
       }
     }
@@ -389,7 +588,8 @@ export async function handleWalletCallback(
     return null;
   } catch (error) {
     console.error('Error handling wallet callback:', error);
-    clearSessionKeypair();
+    rejectPendingConnect('Wallet callback failed');
+    rejectPendingPayment('Wallet callback failed');
     return null;
   }
 }
@@ -400,6 +600,7 @@ export async function restoreSavedWallet(): Promise<{
   balance: number;
 } | null> {
   try {
+    await loadPersistedSessionArtifacts();
     const savedAddress = await getStoredWalletAddress(WALLET_KEY);
     if (savedAddress) {
       const balance = await getBalance(savedAddress);
@@ -416,6 +617,11 @@ export async function restoreSavedWallet(): Promise<{
 export async function disconnectWallet(): Promise<void> {
   try {
     await deleteStoredWalletAddress(WALLET_KEY);
+    clearSessionKeypair();
+    clearWalletSession();
+    await clearPersistedSessionArtifacts();
+    rejectPendingConnect('Wallet disconnected');
+    rejectPendingPayment('Wallet disconnected');
   } catch (error) {
     console.error('Error disconnecting wallet:', error);
   }
@@ -457,8 +663,26 @@ export async function sendPayment(
   }
 
   try {
-    const fromPubkey = new PublicKey(fromWallet);
-    const toPubkey = new PublicKey(toWallet);
+    await loadPersistedSessionArtifacts();
+
+    let fromPubkey: PublicKey;
+    let toPubkey: PublicKey;
+
+    try {
+      fromPubkey = new PublicKey(fromWallet.trim());
+    } catch {
+      throw new Error(`Invalid sender address: "${fromWallet}"`);
+    }
+
+    try {
+      toPubkey = new PublicKey(toWallet.trim());
+    } catch {
+      throw new Error(`Invalid recipient address: "${toWallet}"`);
+    }
+
+    if (fromPubkey.equals(toPubkey)) {
+      throw new Error('Sender and recipient wallets cannot be the same.');
+    }
 
     const { transaction, blockhash, lastValidBlockHeight } = await buildTransferTransaction(
       fromPubkey,
@@ -478,27 +702,72 @@ export async function sendPayment(
       return { signature, success: true };
     }
 
-    // Mobile: deep link to wallet app for signing
-    const serializedTx = transaction
-      .serialize({ requireAllSignatures: false })
-      .toString('base64');
+    // Mobile: use encrypted Phantom deep link signTransaction flow.
+    if (!sessionKeypair || !walletSession || !phantomEncryptionPublicKey) {
+      await connectPhantomWallet();
+      await waitForConnectCallback();
+      await loadPersistedSessionArtifacts();
 
-    const redirectUrl = Linking.createURL('');
+      if (!sessionKeypair || !walletSession || !phantomEncryptionPublicKey) {
+        throw new Error('Wallet session expired. Please reconnect Phantom and try again.');
+      }
+    }
 
-    const params = new URLSearchParams({
-      transaction: serializedTx,
-      redirect_link: redirectUrl,
+    const serializedTx = transaction.serialize({
+      requireAllSignatures: false,
+      verifySignatures: false,
     });
 
-    const signUrl = `https://phantom.app/ul/v1/signAndSendTransaction?${params.toString()}`;
+    const sharedSecret = nacl.box.before(
+      phantomEncryptionPublicKey,
+      sessionKeypair.secretKey
+    );
+
+    const payload = {
+      transaction: toBase58(serializedTx),
+      session: walletSession,
+    };
+
+    const nonce = nacl.randomBytes(nacl.box.nonceLength);
+    const encodedPayload = new TextEncoder().encode(JSON.stringify(payload));
+    const encryptedPayload = nacl.box.after(encodedPayload, nonce, sharedSecret);
+    const redirectUrl = Linking.createURL('wallet-callback');
+
+    const params = new URLSearchParams({
+      dapp_encryption_public_key: toBase58(sessionKeypair.publicKey),
+      nonce: toBase58(nonce),
+      redirect_link: redirectUrl,
+      payload: toBase58(encryptedPayload),
+    });
+
+    // Use signTransaction — Phantom returns the signed tx, we submit it in the callback
+    const supported = await Linking.canOpenURL('phantom://');
+    const signUrl = supported
+      ? `phantom://ul/v1/signTransaction?${params.toString()}`
+      : `https://phantom.app/ul/v1/signTransaction?${params.toString()}`;
+
+    if (pendingPayment) {
+      rejectPendingPayment('Another payment request is already pending');
+    }
+
+    await deleteStoredValue(LAST_TX_SIGNATURE_KEY);
+
+    const paymentPromise = new Promise<{ signature: string; success: boolean }>((resolve, reject) => {
+      const timeoutId = setTimeout(() => {
+        rejectPendingPayment('Payment confirmation timed out. Please try again.');
+      }, 180000);
+
+      pendingPayment = { resolve, reject, timeoutId };
+    });
 
     await Linking.openURL(signUrl);
 
-    // The signature will come back via deep link callback
-    // Return pending state — caller should listen for callback
-    return { signature: '', success: false, pending: true };
+    return await paymentPromise;
   } catch (error) {
     console.error('Error sending payment:', error);
+    if (error instanceof Error) {
+      throw error;
+    }
     throw new Error('Failed to send transaction');
   }
 }

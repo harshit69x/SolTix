@@ -108,13 +108,6 @@ export function EventCard({ event, onPress, compact = false }: EventCardProps) {
             <Ionicons name="image-outline" size={40} color="#6b7280" />
           </View>
         )}
-        {ticketsRemaining <= 10 && ticketsRemaining > 0 && (
-          <View className="absolute top-3 right-3 bg-red-500/90 px-3 py-1 rounded-full">
-            <Text className="text-white text-xs font-bold">
-              Only {ticketsRemaining} left!
-            </Text>
-          </View>
-        )}
       </View>
 
       <View className="p-4">

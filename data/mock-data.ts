@@ -122,7 +122,7 @@ export const MOCK_EVENTS: EventData[] = [
     venue: 'Madison Blockchain Garden',
     location: 'New York, NY',
     imageUrl: 'https://picsum.photos/seed/concert6/800/400',
-    organizerWallet: 'BPFLoader1111111111111111111111111111111111',
+    organizerWallet: '2HZ7ojC5xKUdDBoQtTSGSMf8qYoMX8VzC1LvE2bbUozF',
     organizerName: 'CryptoBeats Inc.',
     ticketPrice: 3.0,
     totalTickets: 8000,
