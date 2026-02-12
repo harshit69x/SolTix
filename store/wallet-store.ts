@@ -1,6 +1,8 @@
 import { getBalance } from '@/services/solana';
 import { upsertProfile } from '@/services/profile-service';
 import {
+  connectBackpackWallet,
+  connectGlowWallet,
   connectPhantomWallet,
   connectSolflareWallet,
   disconnectWallet as disconnectWalletService,
@@ -45,8 +47,12 @@ export const useWalletStore = create<WalletStore>((set, get) => ({
         result = await connectPhantomWallet();
       } else if (provider === 'solflare') {
         result = await connectSolflareWallet();
+      } else if (provider === 'backpack') {
+        result = await connectBackpackWallet();
+      } else if (provider === 'glow') {
+        result = await connectGlowWallet();
       } else {
-        result = await connectPhantomWallet();
+        throw new Error(`Unsupported wallet provider: ${provider}`);
       }
 
       // On web, the extension returns the result directly.
@@ -65,6 +71,9 @@ export const useWalletStore = create<WalletStore>((set, get) => ({
           balance: result.balance,
           connecting: false,
         });
+      } else if (provider === 'backpack' || provider === 'glow') {
+        // These providers are deep-link redirects only right now.
+        set({ connecting: false });
       }
     } catch (error: any) {
       set({

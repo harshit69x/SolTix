@@ -220,16 +220,19 @@ function getWalletCallbackUrl(): string {
 
 async function openWalletDeepLinkWithFallback(
   schemeUrl: string,
-  universalUrl: string
+  universalUrl: string,
+  walletName: string
 ): Promise<void> {
-  try {
-    await Linking.openURL(schemeUrl);
+  if (isWeb()) {
+    await Linking.openURL(universalUrl);
     return;
-  } catch (schemeError) {
-    console.warn('Failed to open wallet scheme URL, falling back to universal link.', schemeError);
   }
 
-  await Linking.openURL(universalUrl);
+  try {
+    await Linking.openURL(schemeUrl);
+  } catch (schemeError) {
+    throw new Error(`${walletName} app is not installed or cannot be opened on this device.`);
+  }
 }
 
 async function getStoredValue(key: string): Promise<string | null> {
@@ -376,7 +379,7 @@ export async function connectPhantomWallet(): Promise<{
     const schemeConnectUrl = `phantom://ul/v1/connect?${params.toString()}`;
     const universalConnectUrl = `https://phantom.app/ul/v1/connect?${params.toString()}`;
 
-    await openWalletDeepLinkWithFallback(schemeConnectUrl, universalConnectUrl);
+    await openWalletDeepLinkWithFallback(schemeConnectUrl, universalConnectUrl, 'Phantom');
     return null; // Will be resolved via deep link callback
   } catch (error) {
     console.error('Error connecting Phantom:', error);
@@ -426,11 +429,57 @@ export async function connectSolflareWallet(): Promise<{
     const schemeConnectUrl = `solflare://ul/v1/connect?${params.toString()}`;
     const universalConnectUrl = `https://solflare.com/ul/v1/connect?${params.toString()}`;
 
-    await openWalletDeepLinkWithFallback(schemeConnectUrl, universalConnectUrl);
+    await openWalletDeepLinkWithFallback(schemeConnectUrl, universalConnectUrl, 'Solflare');
     return null;
   } catch (error) {
     console.error('Error connecting Solflare:', error);
     throw new Error('Failed to connect to Solflare wallet');
+  }
+}
+
+// ─── Connect via Backpack (deep link redirect) ───
+export async function connectBackpackWallet(): Promise<{
+  publicKey: string;
+  balance: number;
+} | null> {
+  try {
+    const redirectUrl = getWalletCallbackUrl();
+    const params = new URLSearchParams({
+      redirect_link: redirectUrl,
+      cluster: process.env.EXPO_PUBLIC_NETWORK || 'devnet',
+      app_url: 'https://soltix.app',
+    });
+
+    const schemeConnectUrl = `backpack://ul/v1/connect?${params.toString()}`;
+    const universalConnectUrl = `https://backpack.app/ul/v1/connect?${params.toString()}`;
+    await openWalletDeepLinkWithFallback(schemeConnectUrl, universalConnectUrl, 'Backpack');
+    return null;
+  } catch (error) {
+    console.error('Error connecting Backpack:', error);
+    throw new Error('Failed to connect to Backpack wallet');
+  }
+}
+
+// ─── Connect via Glow (deep link redirect) ───
+export async function connectGlowWallet(): Promise<{
+  publicKey: string;
+  balance: number;
+} | null> {
+  try {
+    const redirectUrl = getWalletCallbackUrl();
+    const params = new URLSearchParams({
+      redirect_link: redirectUrl,
+      cluster: process.env.EXPO_PUBLIC_NETWORK || 'devnet',
+      app_url: 'https://soltix.app',
+    });
+
+    const schemeConnectUrl = `glow://connect?${params.toString()}`;
+    const universalConnectUrl = `https://glow.app`;
+    await openWalletDeepLinkWithFallback(schemeConnectUrl, universalConnectUrl, 'Glow');
+    return null;
+  } catch (error) {
+    console.error('Error connecting Glow:', error);
+    throw new Error('Failed to connect to Glow wallet');
   }
 }
 
@@ -776,7 +825,7 @@ export async function sendPayment(
       pendingPayment = { resolve, reject, timeoutId };
     });
 
-    await openWalletDeepLinkWithFallback(signSchemeUrl, signUniversalUrl);
+    await openWalletDeepLinkWithFallback(signSchemeUrl, signUniversalUrl, 'Phantom');
 
     return await paymentPromise;
   } catch (error) {

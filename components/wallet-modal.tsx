@@ -2,7 +2,7 @@ import { WALLET_PROVIDERS } from '@/services/wallet-service';
 import { useWalletStore } from '@/store/wallet-store';
 import { Ionicons } from '@expo/vector-icons';
 import React from 'react';
-import { ActivityIndicator, Linking, Modal, Platform, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Linking, Modal, Text, TouchableOpacity, View } from 'react-native';
 
 interface WalletModalProps {
   visible: boolean;
@@ -12,10 +12,6 @@ interface WalletModalProps {
 export function WalletModal({ visible, onClose }: WalletModalProps) {
   const LEGAL_URL = 'https://aman124598.github.io/SolTix/';
   const { connect, connecting, error, clearError } = useWalletStore();
-  const isWeb = Platform.OS === 'web';
-  const supportedWallets = WALLET_PROVIDERS.filter(
-    (wallet) => isWeb || wallet.name === 'Phantom' || wallet.name === 'Solflare'
-  );
 
   const handleConnect = async (providerName: string) => {
     await connect(providerName.toLowerCase());
@@ -69,7 +65,7 @@ export function WalletModal({ visible, onClose }: WalletModalProps) {
             </View>
           ) : (
             <View>
-              {supportedWallets.map((wallet) => (
+              {WALLET_PROVIDERS.map((wallet) => (
                 <TouchableOpacity
                   key={wallet.name}
                   onPress={() => handleConnect(wallet.name)}
