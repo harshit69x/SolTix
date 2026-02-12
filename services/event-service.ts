@@ -1,7 +1,8 @@
 import { PublicKey } from '@solana/web3.js';
-import { supabase } from '@/services/supabase';
+import { getSupabase } from '@/services/supabase';
 import { EventCategory, EventData } from '@/types';
 import type { EventRow } from '@/types/database';
+import { MOCK_EVENTS } from '@/data/mock-data';
 
 const DEV_FALLBACK_ORGANIZER_WALLET = process.env.EXPO_PUBLIC_DEV_FALLBACK_ORGANIZER_WALLET?.trim() || '';
 
@@ -65,6 +66,9 @@ function mapAndFilterValidEvents(rows: EventRow[]): EventData[] {
 
 // ─── Fetch All Events ───
 export async function fetchAllEvents(): Promise<EventData[]> {
+  const supabase = getSupabase();
+  if (!supabase) return MOCK_EVENTS;
+
   const { data, error } = await supabase
     .from('events')
     .select('*')
@@ -80,6 +84,9 @@ export async function fetchAllEvents(): Promise<EventData[]> {
 
 // ─── Fetch Events by Category ───
 export async function fetchEventsByCategory(category: EventCategory): Promise<EventData[]> {
+  const supabase = getSupabase();
+  if (!supabase) return MOCK_EVENTS.filter((e) => e.category === category);
+
   const { data, error } = await supabase
     .from('events')
     .select('*')
@@ -96,6 +103,9 @@ export async function fetchEventsByCategory(category: EventCategory): Promise<Ev
 
 // ─── Fetch Single Event ───
 export async function fetchEventById(id: string): Promise<EventData | null> {
+  const supabase = getSupabase();
+  if (!supabase) return MOCK_EVENTS.find((e) => e.id === id) ?? null;
+
   const { data, error } = await supabase
     .from('events')
     .select('*')
@@ -118,6 +128,20 @@ export async function fetchEventById(id: string): Promise<EventData | null> {
 
 // ─── Search Events ───
 export async function searchEvents(query: string, category?: EventCategory): Promise<EventData[]> {
+  const supabase = getSupabase();
+  if (!supabase) {
+    const q = query.trim().toLowerCase();
+    return MOCK_EVENTS.filter((e) => {
+      if (category && e.category !== category) return false;
+      return (
+        e.title.toLowerCase().includes(q) ||
+        e.location.toLowerCase().includes(q) ||
+        e.venue.toLowerCase().includes(q) ||
+        e.description.toLowerCase().includes(q)
+      );
+    });
+  }
+
   // Sanitize input for ilike pattern — escape SQL wildcards and special characters
   const sanitized = query
     .replace(/\\/g, '\\\\')
@@ -149,6 +173,12 @@ export async function searchEvents(query: string, category?: EventCategory): Pro
 
 // ─── Fetch Upcoming Events ───
 export async function fetchUpcomingEvents(limit = 10): Promise<EventData[]> {
+  const supabase = getSupabase();
+  if (!supabase) {
+    const today = new Date().toISOString().split('T')[0];
+    return MOCK_EVENTS.filter((e) => e.status === 'upcoming' && e.date >= today).slice(0, limit);
+  }
+
   const today = new Date().toISOString().split('T')[0];
 
   const { data, error } = await supabase
@@ -171,6 +201,12 @@ export async function fetchUpcomingEvents(limit = 10): Promise<EventData[]> {
 // NOTE: The DB trigger `on_ticket_created` auto-increments tickets_sold on INSERT.
 // This manual function is kept as an RPC fallback. Prefer relying on the trigger.
 export async function incrementTicketsSold(eventId: string): Promise<void> {
+  const supabase = getSupabase();
+  if (!supabase) {
+    console.warn('incrementTicketsSold skipped: Supabase not configured.', { eventId });
+    return;
+  }
+
   const { error } = await supabase.rpc('increment_tickets_sold_rpc', {
     p_event_id: eventId,
   });

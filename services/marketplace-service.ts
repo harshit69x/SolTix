@@ -1,7 +1,8 @@
-import { supabase } from '@/services/supabase';
+import { getSupabase } from '@/services/supabase';
 import { fetchTicketById } from '@/services/ticket-service';
 import { ListingStatus, MarketplaceListing } from '@/types';
 import type { MarketplaceListingRow } from '@/types/database';
+import { MOCK_LISTINGS } from '@/data/mock-data';
 
 // ─── Row → App Model Mapper ───
 async function mapListingRow(row: MarketplaceListingRow): Promise<MarketplaceListing> {
@@ -52,6 +53,9 @@ async function mapListingRows(rows: MarketplaceListingRow[]): Promise<Marketplac
 
 // ─── Fetch Active Listings ───
 export async function fetchActiveListings(): Promise<MarketplaceListing[]> {
+  const supabase = getSupabase();
+  if (!supabase) return MOCK_LISTINGS.filter((l) => l.status === 'active');
+
   const { data, error } = await supabase
     .from('marketplace_listings')
     .select('*')
@@ -68,6 +72,9 @@ export async function fetchActiveListings(): Promise<MarketplaceListing[]> {
 
 // ─── Fetch All Listings ───
 export async function fetchAllListings(): Promise<MarketplaceListing[]> {
+  const supabase = getSupabase();
+  if (!supabase) return MOCK_LISTINGS;
+
   const { data, error } = await supabase
     .from('marketplace_listings')
     .select('*')
@@ -83,6 +90,9 @@ export async function fetchAllListings(): Promise<MarketplaceListing[]> {
 
 // ─── Fetch Listing by ID ───
 export async function fetchListingById(id: string): Promise<MarketplaceListing | null> {
+  const supabase = getSupabase();
+  if (!supabase) return MOCK_LISTINGS.find((l) => l.id === id) ?? null;
+
   const { data, error } = await supabase
     .from('marketplace_listings')
     .select('*')
@@ -100,6 +110,9 @@ export async function fetchListingById(id: string): Promise<MarketplaceListing |
 
 // ─── Fetch Listings by Seller ───
 export async function fetchListingsBySeller(walletAddress: string): Promise<MarketplaceListing[]> {
+  const supabase = getSupabase();
+  if (!supabase) return MOCK_LISTINGS.filter((l) => l.sellerWallet === walletAddress);
+
   const { data, error } = await supabase
     .from('marketplace_listings')
     .select('*')
@@ -122,6 +135,11 @@ export async function createListing(params: {
   maxAllowedPrice: number;
   royaltyPercentage: number;
 }): Promise<MarketplaceListing> {
+  const supabase = getSupabase();
+  if (!supabase) {
+    throw new Error('Supabase not configured. Listing creation is disabled in offline/mock mode.');
+  }
+
   const { data, error } = await supabase
     .from('marketplace_listings')
     .insert({
@@ -154,6 +172,11 @@ export async function updateListingStatus(
   buyerWallet?: string,
   txSignature?: string
 ): Promise<void> {
+  const supabase = getSupabase();
+  if (!supabase) {
+    throw new Error('Supabase not configured. Listing updates are disabled in offline/mock mode.');
+  }
+
   const updateData: Record<string, any> = { status };
 
   if (status === 'sold') {
