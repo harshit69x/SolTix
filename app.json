@@ -33,18 +33,6 @@
             "BROWSABLE",
             "DEFAULT"
           ]
-        },
-        {
-          "action": "VIEW",
-          "data": [
-            {
-              "scheme": "soltix"
-            }
-          ],
-          "category": [
-            "BROWSABLE",
-            "DEFAULT"
-          ]
         }
       ]
     },
