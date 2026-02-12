@@ -14,9 +14,17 @@ import {
   getBalance
 } from '@/services/solana';
 
+const DAPP_WEB_URL =
+  process.env.EXPO_PUBLIC_APP_URL?.trim() || 'https://soltix.expo.app/';
+
 // ─── Platform Detection ───
 function isWeb(): boolean {
   return Platform.OS === 'web';
+}
+
+function isMobileWebBrowser(): boolean {
+  if (!isWeb() || typeof navigator === 'undefined') return false;
+  return /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
 }
 
 // ─── Browser Extension Types (injected by wallet extensions on desktop) ───
@@ -218,15 +226,16 @@ async function openWalletDeepLinkWithFallback(
   }
 
   try {
-    const canOpenScheme = await Linking.canOpenURL(schemeUrl);
-    if (canOpenScheme) {
-      await Linking.openURL(schemeUrl);
-      return;
-    }
-
+    // Universal links are recommended by wallet providers and are more reliable on Android.
     const canOpenUniversal = await Linking.canOpenURL(universalUrl);
     if (canOpenUniversal) {
       await Linking.openURL(universalUrl);
+      return;
+    }
+
+    const canOpenScheme = await Linking.canOpenURL(schemeUrl);
+    if (canOpenScheme) {
+      await Linking.openURL(schemeUrl);
       return;
     }
 
@@ -346,6 +355,20 @@ export async function connectPhantomWallet(): Promise<{
   // Desktop/Web: use browser extension
   if (isWeb()) {
     const provider = getPhantomProvider();
+    if (!provider && isMobileWebBrowser()) {
+      const currentUrl =
+        typeof window !== 'undefined' && window.location?.href
+          ? window.location.href
+          : DAPP_WEB_URL;
+      const browseUrl = `https://phantom.app/ul/browse/${encodeURIComponent(
+        currentUrl
+      )}?ref=${encodeURIComponent(DAPP_WEB_URL)}`;
+      if (typeof window !== 'undefined') {
+        window.location.assign(browseUrl);
+      }
+      throw new Error('Opening Phantom in-app browser. Continue wallet connection there.');
+    }
+
     if (!provider) {
       window.open('https://phantom.app/download', '_blank');
       throw new Error('Phantom extension not installed. Please install it and refresh the page.');
@@ -371,7 +394,7 @@ export async function connectPhantomWallet(): Promise<{
     const redirectUrl = getWalletCallbackUrl();
 
     const params = new URLSearchParams({
-      app_url: 'https://soltix.app',
+      app_url: DAPP_WEB_URL,
       dapp_encryption_public_key: dappPubKeyBase58,
       redirect_link: redirectUrl,
       cluster: process.env.EXPO_PUBLIC_NETWORK || 'devnet',
@@ -396,6 +419,11 @@ export async function connectSolflareWallet(): Promise<{
   // Desktop/Web: use browser extension
   if (isWeb()) {
     const provider = getSolflareProvider();
+    if (!provider && isMobileWebBrowser()) {
+      throw new Error(
+        'On mobile web, open this app inside Solflare in-app browser to connect.'
+      );
+    }
     if (!provider) {
       window.open('https://solflare.com/download', '_blank');
       throw new Error('Solflare extension not installed. Please install it and refresh the page.');
@@ -421,7 +449,7 @@ export async function connectSolflareWallet(): Promise<{
     const redirectUrl = getWalletCallbackUrl();
 
     const params = new URLSearchParams({
-      app_url: 'https://soltix.app',
+      app_url: DAPP_WEB_URL,
       dapp_encryption_public_key: dappPubKeyBase58,
       redirect_link: redirectUrl,
       cluster: process.env.EXPO_PUBLIC_NETWORK || 'devnet',
