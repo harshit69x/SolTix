@@ -364,7 +364,7 @@ export default function EventDetailScreen() {
                   ? 'Insufficient Balance'
                   : !hasValidOrganizerWallet
                     ? 'Invalid Organizer Wallet'
-                  : 'Buy Ticket'
+                    : 'Buy Ticket'
           }
           onPress={handlePurchase}
           variant="primary"
@@ -389,7 +389,7 @@ export default function EventDetailScreen() {
             ? `You need ${event.ticketPrice} SOL but only have ${Number.isFinite(balance) ? balance.toFixed(2) : '0'} SOL`
             : txState === 'error' && !hasValidOrganizerWallet
               ? 'This event has an invalid organizer wallet address and cannot be purchased.'
-            : undefined
+              : undefined
         }
         signature={txSignature || undefined}
         onClose={() => {
