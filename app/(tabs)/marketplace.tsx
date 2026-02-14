@@ -2,7 +2,10 @@ import { ListingCard } from '@/components/listing-card';
 import { TransactionModal } from '@/components/transaction-modal';
 import { EmptyState, LoadingScreen } from '@/components/ui/loading';
 import { SearchBar } from '@/components/ui/search-bar';
+import { transferTicket } from '@/services/ticket-service';
+import { sendPayment } from '@/services/wallet-service';
 import { useMarketplaceStore } from '@/store/marketplace-store';
+import { useTicketStore } from '@/store/ticket-store';
 import { useWalletStore } from '@/store/wallet-store';
 import { router } from 'expo-router';
 import React, { useEffect, useState } from 'react';
@@ -11,7 +14,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function MarketplaceScreen() {
   const { listings, loading, fetchListings } = useMarketplaceStore();
-  const { publicKey, connected } = useWalletStore();
+  const { publicKey, connected, refreshBalance } = useWalletStore();
+  const { fetchTickets } = useTicketStore();
   const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [txModalVisible, setTxModalVisible] = useState(false);
@@ -42,6 +46,13 @@ export default function MarketplaceScreen() {
 
     const listing = listings.find((l) => l.id === listingId);
     if (!listing) return;
+    if (!publicKey) return;
+    if (listing.sellerWallet === publicKey) {
+      setTxTitle('Cannot Buy Your Own Listing');
+      setTxState('error');
+      setTxModalVisible(true);
+      return;
+    }
 
     setPurchaseListingId(listingId);
     setTxTitle('Purchasing Ticket');
@@ -54,12 +65,35 @@ export default function MarketplaceScreen() {
     try {
       setTxState('processing');
 
+      const payment = await sendPayment(publicKey, listing.sellerWallet, listing.listPrice);
+
       // Update listing status in database
       await useMarketplaceStore.getState().updateListingStatus(
         listingId,
         'sold',
-        publicKey || undefined
+        publicKey,
+        payment.signature
       );
+
+      await transferTicket(listing.ticket.id, publicKey);
+
+      // Keep local ticket list usable even in fallback/local mode.
+      useTicketStore.setState((state) => ({
+        tickets: [
+          {
+            ...listing.ticket,
+            ownerWallet: publicKey,
+            purchasePrice: listing.listPrice,
+            purchaseDate: new Date().toISOString(),
+            status: 'valid',
+          },
+          ...state.tickets.filter((t) => t.id !== listing.ticket.id),
+        ],
+      }));
+
+      await fetchListings();
+      await fetchTickets(publicKey);
+      await refreshBalance();
 
       setTxState('success');
     } catch (error: any) {

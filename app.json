@@ -66,6 +66,12 @@
         "projectId": "0f94dd30-fd81-47fa-808a-cc95897ce0ee"
       }
     },
-    "owner": "amanzzz"
+    "owner": "amanzzz",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/0f94dd30-fd81-47fa-808a-cc95897ce0ee"
+    }
   }
 }

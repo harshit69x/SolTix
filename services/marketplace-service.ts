@@ -1,7 +1,18 @@
-import { supabase } from '@/services/supabase';
+import { getSupabase } from '@/services/supabase';
 import { fetchTicketById } from '@/services/ticket-service';
-import { ListingStatus, MarketplaceListing } from '@/types';
+import { ListingStatus, MarketplaceListing, Ticket } from '@/types';
 import type { MarketplaceListingRow } from '@/types/database';
+import { MOCK_LISTINGS } from '@/data/mock-data';
+
+let localListings: MarketplaceListing[] = [...MOCK_LISTINGS];
+
+function isSupabaseAuthLikeError(code: string | undefined, message: string): boolean {
+  return (
+    code === '401' ||
+    code === '403' ||
+    /invalid api key|jwt|unauthorized|permission/i.test(message)
+  );
+}
 
 // ─── Row → App Model Mapper ───
 async function mapListingRow(row: MarketplaceListingRow): Promise<MarketplaceListing> {
@@ -52,6 +63,9 @@ async function mapListingRows(rows: MarketplaceListingRow[]): Promise<Marketplac
 
 // ─── Fetch Active Listings ───
 export async function fetchActiveListings(): Promise<MarketplaceListing[]> {
+  const supabase = getSupabase();
+  if (!supabase) return localListings.filter((l) => l.status === 'active');
+
   const { data, error } = await supabase
     .from('marketplace_listings')
     .select('*')
@@ -60,6 +74,10 @@ export async function fetchActiveListings(): Promise<MarketplaceListing[]> {
 
   if (error) {
     console.error('Error fetching listings:', error.message);
+    if (isSupabaseAuthLikeError(error.code, error.message)) {
+      console.warn('Falling back to local listings due to Supabase auth/config error.');
+      return localListings.filter((l) => l.status === 'active');
+    }
     throw new Error(error.message);
   }
 
@@ -68,6 +86,9 @@ export async function fetchActiveListings(): Promise<MarketplaceListing[]> {
 
 // ─── Fetch All Listings ───
 export async function fetchAllListings(): Promise<MarketplaceListing[]> {
+  const supabase = getSupabase();
+  if (!supabase) return localListings;
+
   const { data, error } = await supabase
     .from('marketplace_listings')
     .select('*')
@@ -75,6 +96,10 @@ export async function fetchAllListings(): Promise<MarketplaceListing[]> {
 
   if (error) {
     console.error('Error fetching all listings:', error.message);
+    if (isSupabaseAuthLikeError(error.code, error.message)) {
+      console.warn('Falling back to local listings due to Supabase auth/config error.');
+      return localListings;
+    }
     throw new Error(error.message);
   }
 
@@ -83,6 +108,9 @@ export async function fetchAllListings(): Promise<MarketplaceListing[]> {
 
 // ─── Fetch Listing by ID ───
 export async function fetchListingById(id: string): Promise<MarketplaceListing | null> {
+  const supabase = getSupabase();
+  if (!supabase) return localListings.find((l) => l.id === id) ?? null;
+
   const { data, error } = await supabase
     .from('marketplace_listings')
     .select('*')
@@ -92,6 +120,9 @@ export async function fetchListingById(id: string): Promise<MarketplaceListing |
   if (error) {
     if (error.code === 'PGRST116') return null;
     console.error('Error fetching listing:', error.message);
+    if (isSupabaseAuthLikeError(error.code, error.message)) {
+      return localListings.find((l) => l.id === id) ?? null;
+    }
     throw new Error(error.message);
   }
 
@@ -100,6 +131,9 @@ export async function fetchListingById(id: string): Promise<MarketplaceListing |
 
 // ─── Fetch Listings by Seller ───
 export async function fetchListingsBySeller(walletAddress: string): Promise<MarketplaceListing[]> {
+  const supabase = getSupabase();
+  if (!supabase) return localListings.filter((l) => l.sellerWallet === walletAddress);
+
   const { data, error } = await supabase
     .from('marketplace_listings')
     .select('*')
@@ -108,6 +142,10 @@ export async function fetchListingsBySeller(walletAddress: string): Promise<Mark
 
   if (error) {
     console.error('Error fetching seller listings:', error.message);
+    if (isSupabaseAuthLikeError(error.code, error.message)) {
+      console.warn('Falling back to local listings due to Supabase auth/config error.');
+      return localListings.filter((l) => l.sellerWallet === walletAddress);
+    }
     throw new Error(error.message);
   }
 
@@ -121,7 +159,30 @@ export async function createListing(params: {
   listPrice: number;
   maxAllowedPrice: number;
   royaltyPercentage: number;
+  ticket?: Ticket;
 }): Promise<MarketplaceListing> {
+  const supabase = getSupabase();
+  if (!supabase) {
+    const ticket = params.ticket ?? (await fetchTicketById(params.ticketId));
+    if (!ticket) {
+      throw new Error(`Ticket not found for listing creation: ${params.ticketId}`);
+    }
+
+    const listing: MarketplaceListing = {
+      id: `local-listing-${Date.now()}`,
+      ticket,
+      sellerWallet: params.sellerWallet,
+      listPrice: params.listPrice,
+      maxAllowedPrice: params.maxAllowedPrice,
+      royaltyPercentage: params.royaltyPercentage,
+      listedAt: new Date().toISOString(),
+      status: 'active',
+    };
+
+    localListings = [listing, ...localListings];
+    return listing;
+  }
+
   const { data, error } = await supabase
     .from('marketplace_listings')
     .insert({
@@ -141,6 +202,25 @@ export async function createListing(params: {
 
   if (error) {
     console.error('Error creating listing:', error.message);
+    if (isSupabaseAuthLikeError(error.code, error.message)) {
+      console.warn('Falling back to local listing creation due to Supabase auth/config error.');
+      const ticket = params.ticket ?? (await fetchTicketById(params.ticketId));
+      if (!ticket) {
+        throw new Error(`Ticket not found for listing creation: ${params.ticketId}`);
+      }
+      const listing: MarketplaceListing = {
+        id: `local-listing-${Date.now()}`,
+        ticket,
+        sellerWallet: params.sellerWallet,
+        listPrice: params.listPrice,
+        maxAllowedPrice: params.maxAllowedPrice,
+        royaltyPercentage: params.royaltyPercentage,
+        listedAt: new Date().toISOString(),
+        status: 'active',
+      };
+      localListings = [listing, ...localListings];
+      return listing;
+    }
     throw new Error(error.message);
   }
 
@@ -154,6 +234,14 @@ export async function updateListingStatus(
   buyerWallet?: string,
   txSignature?: string
 ): Promise<void> {
+  const supabase = getSupabase();
+  if (!supabase) {
+    localListings = localListings.map((listing) =>
+      listing.id === listingId ? { ...listing, status } : listing
+    );
+    return;
+  }
+
   const updateData: Record<string, any> = { status };
 
   if (status === 'sold') {
@@ -170,6 +258,13 @@ export async function updateListingStatus(
 
   if (error) {
     console.error('Error updating listing:', error.message);
+    if (isSupabaseAuthLikeError(error.code, error.message)) {
+      console.warn('Falling back to local listing update due to Supabase auth/config error.');
+      localListings = localListings.map((listing) =>
+        listing.id === listingId ? { ...listing, status } : listing
+      );
+      return;
+    }
     throw new Error(error.message);
   }
 

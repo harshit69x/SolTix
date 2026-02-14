@@ -145,7 +145,7 @@ export default function DashboardScreen() {
             <EventCard
               key={event.id}
               event={event}
-              onPress={() => router.push(`/event/${event.id}` as any)}
+              onPress={() => router.push({ pathname: '/event/[id]', params: { id: event.id } })}
               compact
             />
           ))}

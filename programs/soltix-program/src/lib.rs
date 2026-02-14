@@ -1,12 +1,8 @@
 use anchor_lang::prelude::*;
 use anchor_spl::token::{self, Mint, Token, TokenAccount, MintTo, Transfer};
 use anchor_spl::associated_token::AssociatedToken;
-use mpl_token_metadata::instructions::{
-    CreateV1CpiBuilder, MintV1CpiBuilder,
-};
-use mpl_token_metadata::types::{TokenStandard, PrintSupply};
 
-declare_id!("Fg6PaFpoGXkYsidMpWTK6W2BeZ7FEfcYkg476zPFsLnS");
+declare_id!("QoWSByU5eAUTSrZebW1q8xRMuAkuvgsiqwEZ16EVRHJ");
 
 #[program]
 pub mod soltix_program {
@@ -336,9 +332,12 @@ pub struct BuyTicket<'info> {
     #[account(mut, address = event.organizer)]
     pub organizer_account: UncheckedAccount<'info>,
 
+    #[account(address = ticket.mint)]
+    pub mint: Account<'info, Mint>,
+
     #[account(
         mut,
-        associated_token::mint = ticket.mint,
+        associated_token::mint = mint,
         associated_token::authority = seller,
     )]
     pub seller_token_account: Account<'info, TokenAccount>,
@@ -346,7 +345,7 @@ pub struct BuyTicket<'info> {
     #[account(
         init_if_needed,
         payer = buyer,
-        associated_token::mint = ticket.mint,
+        associated_token::mint = mint,
         associated_token::authority = buyer,
     )]
     pub buyer_token_account: Account<'info, TokenAccount>,

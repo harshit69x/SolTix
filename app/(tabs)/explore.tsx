@@ -6,7 +6,7 @@ import { useEventStore } from '@/store/event-store';
 import { EventCategory } from '@/types';
 import { router } from 'expo-router';
 import React, { useEffect } from 'react';
-import { FlatList, RefreshControl, ScrollView, Text, View } from 'react-native';
+import { FlatList, Platform, RefreshControl, ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 const CATEGORIES: { key: EventCategory | 'all'; label: string }[] = [
@@ -20,6 +20,7 @@ const CATEGORIES: { key: EventCategory | 'all'; label: string }[] = [
 ];
 
 export default function EventsExplorerScreen() {
+  const isWeb = Platform.OS === 'web';
   const {
     filteredEvents,
     loading,
@@ -82,47 +83,92 @@ export default function EventsExplorerScreen() {
         </ScrollView>
       </View>
 
-      <FlatList
-        data={filteredEvents}
-        keyExtractor={(item) => item.id}
-        contentContainerStyle={{ paddingHorizontal: 24, paddingBottom: 20, flexGrow: 1 }}
-        showsVerticalScrollIndicator={false}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#9945FF" />
-        }
-        renderItem={({ item }) => (
-          <EventCard
-            event={item}
-            onPress={() => router.push(`/event/${item.id}` as any)}
-          />
-        )}
-        ListEmptyComponent={
-          <EmptyState
-            title="No events found"
-            message="Try adjusting your search or filters"
-            action={
-              <Button
-                title="Clear Filters"
-                onPress={() => {
-                  setSearchQuery('');
-                  setCategory('all');
-                }}
-                variant="outline"
-                size="sm"
-              />
-            }
-          />
-        }
-        ListHeaderComponent={
-          filteredEvents.length > 0 ? (
+      {isWeb ? (
+        <ScrollView
+          className="flex-1"
+          contentContainerStyle={{ paddingHorizontal: 24, paddingBottom: 20, flexGrow: 1 }}
+          showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#9945FF" />
+          }
+        >
+          {filteredEvents.length > 0 ? (
             <View className="mb-2">
               <Text className="text-gray-400 text-sm">
                 {filteredEvents.length} event{filteredEvents.length !== 1 ? 's' : ''} found
               </Text>
             </View>
-          ) : undefined
-        }
-      />
+          ) : null}
+
+          {filteredEvents.map((item) => (
+            <EventCard
+              key={item.id}
+              event={item}
+              onPress={() => router.push({ pathname: '/event/[id]', params: { id: item.id } })}
+            />
+          ))}
+
+          {filteredEvents.length === 0 ? (
+            <EmptyState
+              title="No events found"
+              message="Try adjusting your search or filters"
+              action={
+                <Button
+                  title="Clear Filters"
+                  onPress={() => {
+                    setSearchQuery('');
+                    setCategory('all');
+                  }}
+                  variant="outline"
+                  size="sm"
+                />
+              }
+            />
+          ) : null}
+        </ScrollView>
+      ) : (
+        <FlatList
+          data={filteredEvents}
+          keyExtractor={(item) => item.id}
+          contentContainerStyle={{ paddingHorizontal: 24, paddingBottom: 20, flexGrow: 1 }}
+          showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#9945FF" />
+          }
+          renderItem={({ item }) => (
+            <EventCard
+              event={item}
+              onPress={() => router.push({ pathname: '/event/[id]', params: { id: item.id } })}
+            />
+          )}
+          ListEmptyComponent={
+            <EmptyState
+              title="No events found"
+              message="Try adjusting your search or filters"
+              action={
+                <Button
+                  title="Clear Filters"
+                  onPress={() => {
+                    setSearchQuery('');
+                    setCategory('all');
+                  }}
+                  variant="outline"
+                  size="sm"
+                />
+              }
+            />
+          }
+          ListHeaderComponent={
+            filteredEvents.length > 0 ? (
+              <View className="mb-2">
+                <Text className="text-gray-400 text-sm">
+                  {filteredEvents.length} event{filteredEvents.length !== 1 ? 's' : ''} found
+                </Text>
+              </View>
+            ) : undefined
+          }
+        />
+      )}
     </SafeAreaView>
   );
 }

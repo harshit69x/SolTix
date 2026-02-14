@@ -23,7 +23,7 @@ VALUES
   '2026-05-22', '10:00 AM',
   'Marina Bay Sands Convention Centre', 'Singapore',
   'https://images.unsplash.com/photo-1505373877841-8d25f7d46678?w=800&q=80',
-  'BridG3Wa11etXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX',
+  '2HZ7ojC5xKUdDBoQtTSGSMf8qYoMX8VzC1LvE2bbUozF',
   'Interop Alliance',
   1.8, 3000, 1850, 3.6, 6,
   'conference', 'upcoming', ''
@@ -34,7 +34,7 @@ VALUES
   '2026-06-10', '09:30 AM',
   'Javits Center', 'New York, NY',
   'https://images.unsplash.com/photo-1591115765373-5f9cf1da1776?w=800&q=80',
-  'DePINOrg111111111111111111111111111111111111',
+  '2HZ7ojC5xKUdDBoQtTSGSMf8qYoMX8VzC1LvE2bbUozF',
   'DePIN Foundation',
   3.0, 4000, 2100, 6.0, 5,
   'conference', 'upcoming', ''
@@ -58,7 +58,7 @@ VALUES
   '2026-08-15', '10:00 AM',
   'Copacabana Beach', 'Rio de Janeiro, Brazil',
   'https://images.unsplash.com/photo-1533174072545-7a4b6ad7a6c3?w=800&q=80',
-  'BeachFes111111111111111111111111111111111111',
+  '2HZ7ojC5xKUdDBoQtTSGSMf8qYoMX8VzC1LvE2bbUozF',
   'Sol Beach Collective',
   0.8, 8000, 3200, 1.6, 7,
   'festival', 'upcoming', ''
@@ -82,7 +82,7 @@ VALUES
   '2026-04-05', '09:00 AM',
   'WeWork Coworking Space', 'London, UK',
   'https://images.unsplash.com/photo-1517245386807-bb43f82c33c4?w=800&q=80',
-  'AnchorDv1111111111111111111111111111111111',
+  '2HZ7ojC5xKUdDBoQtTSGSMf8qYoMX8VzC1LvE2bbUozF',
   'Solana Developer Academy',
   1.0, 80, 65, 2.0, 5,
   'workshop', 'upcoming', ''
@@ -93,7 +93,7 @@ VALUES
   '2026-05-18', '10:00 AM',
   'ETH Zurich Campus', 'Zurich, Switzerland',
   'https://images.unsplash.com/photo-1509228627152-72ae9ae6848d?w=800&q=80',
-  'ZKLabs111111111111111111111111111111111111111',
+  '2HZ7ojC5xKUdDBoQtTSGSMf8qYoMX8VzC1LvE2bbUozF',
   'ZK Research Labs',
   1.5, 40, 28, 3.0, 8,
   'workshop', 'upcoming', ''
@@ -106,7 +106,7 @@ VALUES
   '2026-07-12', '08:00 PM',
   'The Wiltern', 'Los Angeles, CA',
   'https://images.unsplash.com/photo-1470229722913-7c0e2dbbafd3?w=800&q=80',
-  'CryptoBt1111111111111111111111111111111111',
+  '2HZ7ojC5xKUdDBoQtTSGSMf8qYoMX8VzC1LvE2bbUozF',
   'CryptoBeats Inc.',
   3.0, 8000, 5500, 6.0, 7,
   'concert', 'upcoming', ''
@@ -117,7 +117,7 @@ VALUES
   '2026-09-20', '09:00 PM',
   'Avant Gardner', 'Brooklyn, NY',
   'https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=800&q=80',
-  'Deadmau5Mgmt111111111111111111111111111111111',
+  '2HZ7ojC5xKUdDBoQtTSGSMf8qYoMX8VzC1LvE2bbUozF',
   'mau5trap',
   4.0, 6000, 4200, 8.0, 10,
   'concert', 'upcoming', ''
@@ -128,7 +128,7 @@ VALUES
   '2026-08-08', '07:30 PM',
   'Royal Albert Hall', 'London, UK',
   'https://images.unsplash.com/photo-1501386761578-eac5c94b800a?w=800&q=80',
-  'BonoboMgmt1111111111111111111111111111111111',
+  '2HZ7ojC5xKUdDBoQtTSGSMf8qYoMX8VzC1LvE2bbUozF',
   'Ninja Tune',
   2.2, 5000, 3800, 4.4, 6,
   'concert', 'upcoming', ''
@@ -152,7 +152,7 @@ VALUES
   '2026-06-28', '04:00 PM',
   'Crypto.com Arena', 'Los Angeles, CA',
   'https://images.unsplash.com/photo-1546519638-68e109498ffc?w=800&q=80',
-  'CryptoBBall111111111111111111111111111111111',
+  '2HZ7ojC5xKUdDBoQtTSGSMf8qYoMX8VzC1LvE2bbUozF',
   'Web3 Sports League',
   1.5, 15000, 8900, 3.0, 5,
   'sports', 'upcoming', ''
@@ -176,7 +176,7 @@ VALUES
   '2026-04-12', '02:00 PM',
   'WeWork Roppongi', 'Tokyo, Japan',
   'https://images.unsplash.com/photo-1528605248644-14dd04022da1?w=800&q=80',
-  'WomenWeb3Tok11111111111111111111111111111111',
+  '2HZ7ojC5xKUdDBoQtTSGSMf8qYoMX8VzC1LvE2bbUozF',
   'Women in Web3 Japan',
   0, 60, 45, 0, 0,
   'meetup', 'upcoming', ''
@@ -187,7 +187,7 @@ VALUES
   '2026-05-30', '11:00 AM',
   'Hacker House', 'Dubai, UAE',
   'https://images.unsplash.com/photo-1552664730-d307ca884978?w=800&q=80',
-  'ValidatorsDAO11111111111111111111111111111111',
+  '2HZ7ojC5xKUdDBoQtTSGSMf8qYoMX8VzC1LvE2bbUozF',
   'Solana Validators DAO',
   0.3, 30, 22, 0.6, 3,
   'meetup', 'upcoming', ''

@@ -8,6 +8,7 @@ import { Alert, Linking, ScrollView, Switch, Text, TouchableOpacity, View } from
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function SettingsScreen() {
+  const LEGAL_URL = 'https://aman124598.github.io/SolTix/';
   const { connected, publicKey, balance, disconnect } = useWalletStore();
   const [walletModalVisible, setWalletModalVisible] = useState(false);
   const [notifications, setNotifications] = useState(true);
@@ -34,8 +35,8 @@ export default function SettingsScreen() {
         {
           text: 'Disconnect',
           style: 'destructive',
-          onPress: () => {
-            disconnect();
+          onPress: async () => {
+            await disconnect();
             router.replace('/landing');
           },
         },
@@ -198,7 +199,7 @@ export default function SettingsScreen() {
             icon="document-text"
             title="Terms of Service"
             onPress={() => {
-              Linking.openURL('https://soltix.app/terms').catch(() =>
+              Linking.openURL(LEGAL_URL).catch(() =>
                 Alert.alert('Error', 'Could not open Terms of Service.')
               );
             }}
@@ -207,7 +208,7 @@ export default function SettingsScreen() {
             icon="shield"
             title="Privacy Policy"
             onPress={() => {
-              Linking.openURL('https://soltix.app/privacy').catch(() =>
+              Linking.openURL(LEGAL_URL).catch(() =>
                 Alert.alert('Error', 'Could not open Privacy Policy.')
               );
             }}

@@ -1,0 +1,506 @@
+{
+  "version": "0.1.0",
+  "name": "soltix_program",
+  "instructions": [
+    {
+      "name": "createEvent",
+      "accounts": [
+        {
+          "name": "event",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "organizer",
+          "isMut": true,
+          "isSigner": true
+        },
+        {
+          "name": "systemProgram",
+          "isMut": false,
+          "isSigner": false
+        }
+      ],
+      "args": [
+        {
+          "name": "name",
+          "type": "string"
+        },
+        {
+          "name": "originalPrice",
+          "type": "u64"
+        },
+        {
+          "name": "maxResalePrice",
+          "type": "u64"
+        },
+        {
+          "name": "royaltyPercentage",
+          "type": "u8"
+        },
+        {
+          "name": "eventUri",
+          "type": "string"
+        }
+      ]
+    },
+    {
+      "name": "mintTicket",
+      "accounts": [
+        {
+          "name": "event",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "ticket",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "mint",
+          "isMut": true,
+          "isSigner": true
+        },
+        {
+          "name": "tokenAccount",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "buyer",
+          "isMut": true,
+          "isSigner": true
+        },
+        {
+          "name": "organizerAccount",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "tokenProgram",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "associatedTokenProgram",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "systemProgram",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "rent",
+          "isMut": false,
+          "isSigner": false
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "listTicket",
+      "accounts": [
+        {
+          "name": "ticket",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "event",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "owner",
+          "isMut": true,
+          "isSigner": true
+        }
+      ],
+      "args": [
+        {
+          "name": "price",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "cancelListing",
+      "accounts": [
+        {
+          "name": "ticket",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "owner",
+          "isMut": true,
+          "isSigner": true
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "buyTicket",
+      "accounts": [
+        {
+          "name": "ticket",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "event",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "buyer",
+          "isMut": true,
+          "isSigner": true
+        },
+        {
+          "name": "seller",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "organizerAccount",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "mint",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "sellerTokenAccount",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "buyerTokenAccount",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "tokenProgram",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "associatedTokenProgram",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "systemProgram",
+          "isMut": false,
+          "isSigner": false
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "deactivateEvent",
+      "accounts": [
+        {
+          "name": "event",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "organizer",
+          "isMut": false,
+          "isSigner": true
+        }
+      ],
+      "args": []
+    }
+  ],
+  "accounts": [
+    {
+      "name": "Event",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "organizer",
+            "type": "publicKey"
+          },
+          {
+            "name": "name",
+            "type": "string"
+          },
+          {
+            "name": "originalPrice",
+            "type": "u64"
+          },
+          {
+            "name": "maxResalePrice",
+            "type": "u64"
+          },
+          {
+            "name": "royaltyPercentage",
+            "type": "u8"
+          },
+          {
+            "name": "active",
+            "type": "bool"
+          },
+          {
+            "name": "eventUri",
+            "type": "string"
+          },
+          {
+            "name": "totalMinted",
+            "type": "u32"
+          },
+          {
+            "name": "createdAt",
+            "type": "i64"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Ticket",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "event",
+            "type": "publicKey"
+          },
+          {
+            "name": "mint",
+            "type": "publicKey"
+          },
+          {
+            "name": "originalOwner",
+            "type": "publicKey"
+          },
+          {
+            "name": "currentOwner",
+            "type": "publicKey"
+          },
+          {
+            "name": "originalPrice",
+            "type": "u64"
+          },
+          {
+            "name": "forSale",
+            "type": "bool"
+          },
+          {
+            "name": "listingPrice",
+            "type": "u64"
+          },
+          {
+            "name": "transferCount",
+            "type": "u32"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    }
+  ],
+  "events": [
+    {
+      "name": "EventCreated",
+      "fields": [
+        {
+          "name": "eventId",
+          "type": "publicKey",
+          "index": false
+        },
+        {
+          "name": "name",
+          "type": "string",
+          "index": true
+        },
+        {
+          "name": "price",
+          "type": "u64",
+          "index": false
+        },
+        {
+          "name": "organizer",
+          "type": "publicKey",
+          "index": false
+        }
+      ]
+    },
+    {
+      "name": "TicketMinted",
+      "fields": [
+        {
+          "name": "ticketId",
+          "type": "publicKey",
+          "index": false
+        },
+        {
+          "name": "eventId",
+          "type": "publicKey",
+          "index": false
+        },
+        {
+          "name": "owner",
+          "type": "publicKey",
+          "index": false
+        },
+        {
+          "name": "mint",
+          "type": "publicKey",
+          "index": false
+        }
+      ]
+    },
+    {
+      "name": "TicketListed",
+      "fields": [
+        {
+          "name": "ticketId",
+          "type": "publicKey",
+          "index": false
+        },
+        {
+          "name": "owner",
+          "type": "publicKey",
+          "index": false
+        },
+        {
+          "name": "price",
+          "type": "u64",
+          "index": false
+        }
+      ]
+    },
+    {
+      "name": "ListingCancelled",
+      "fields": [
+        {
+          "name": "ticketId",
+          "type": "publicKey",
+          "index": false
+        },
+        {
+          "name": "owner",
+          "type": "publicKey",
+          "index": false
+        }
+      ]
+    },
+    {
+      "name": "TicketSold",
+      "fields": [
+        {
+          "name": "ticketId",
+          "type": "publicKey",
+          "index": false
+        },
+        {
+          "name": "from",
+          "type": "publicKey",
+          "index": false
+        },
+        {
+          "name": "to",
+          "type": "publicKey",
+          "index": false
+        },
+        {
+          "name": "price",
+          "type": "u64",
+          "index": false
+        }
+      ]
+    },
+    {
+      "name": "EventDeactivated",
+      "fields": [
+        {
+          "name": "eventId",
+          "type": "publicKey",
+          "index": false
+        }
+      ]
+    }
+  ],
+  "errors": [
+    {
+      "code": 6000,
+      "name": "RoyaltyTooHigh",
+      "msg": "Royalty percentage cannot exceed 25%"
+    },
+    {
+      "code": 6001,
+      "name": "EventNotActive",
+      "msg": "Event is not active"
+    },
+    {
+      "code": 6002,
+      "name": "NotOwner",
+      "msg": "You do not own this ticket"
+    },
+    {
+      "code": 6003,
+      "name": "AlreadyListed",
+      "msg": "Ticket is already listed for sale"
+    },
+    {
+      "code": 6004,
+      "name": "PriceExceedsMax",
+      "msg": "Price exceeds maximum resale price"
+    },
+    {
+      "code": 6005,
+      "name": "NotForSale",
+      "msg": "Ticket is not listed for sale"
+    },
+    {
+      "code": 6006,
+      "name": "NotListed",
+      "msg": "Ticket is not listed"
+    },
+    {
+      "code": 6007,
+      "name": "CannotBuyOwnTicket",
+      "msg": "Cannot buy your own ticket"
+    },
+    {
+      "code": 6008,
+      "name": "NotOrganizer",
+      "msg": "You are not the event organizer"
+    },
+    {
+      "code": 6009,
+      "name": "InvalidPrice",
+      "msg": "Invalid price"
+    },
+    {
+      "code": 6010,
+      "name": "InvalidMaxResale",
+      "msg": "Invalid max resale price"
+    },
+    {
+      "code": 6011,
+      "name": "NameTooLong",
+      "msg": "Name too long (max 100 characters)"
+    },
+    {
+      "code": 6012,
+      "name": "UriTooLong",
+      "msg": "URI too long (max 200 characters)"
+    }
+  ]
+}

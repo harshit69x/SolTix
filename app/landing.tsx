@@ -68,10 +68,48 @@ export default function LandingScreen() {
         </View>
 
         {/* Hero Section */}
+<<<<<<< HEAD
         <Animated.View entering={FadeInDown.delay(300).duration(800)} className="px-6 pt-8 pb-10">
           <LinearGradient
             colors={['#1a1a2e', '#16213e', '#0f0f23']}
             className="rounded-3xl p-6"
+=======
+        <View className="px-6 pt-8 pb-10">
+          <View className="bg-solana-purple/10 self-start px-4 py-1.5 rounded-full mb-4">
+            <Text className="text-solana-purple text-xs font-semibold">
+              ⚡ Built on Solana
+            </Text>
+          </View>
+
+          <Text className="text-white font-bold text-4xl leading-tight">
+            NFT Tickets.{'\n'}
+            <Text className="text-solana-green">Trustless.</Text>
+            {'\n'}Transparent.
+          </Text>
+
+          <Text className="text-gray-400 text-base mt-4 leading-relaxed">
+            The decentralized ticketing protocol that eliminates fraud, enforces fair resale, and
+            puts organizers in control.
+          </Text>
+
+          <View className="flex-row gap-3 mt-8">
+            <View className="flex-1">
+              <Button
+                title="Connect Wallet"
+                onPress={() => setWalletModalVisible(true)}
+                variant="primary"
+                size="lg"
+                fullWidth
+                icon={<Ionicons name="wallet" size={20} color="#fff" />}
+              />
+            </View>
+          </View>
+
+          <TouchableOpacity
+            onPress={() => router.replace('/(tabs)/explore')}
+            className="flex-row items-center justify-center mt-4 py-3"
+            activeOpacity={0.7}
+>>>>>>> fff3fdb02f3bfbb07583fb184bdba0c3d658cc4c
           >
             <View className="bg-solana-purple/10 self-start px-4 py-1.5 rounded-full mb-4">
               <Text className="text-solana-purple text-xs font-semibold">

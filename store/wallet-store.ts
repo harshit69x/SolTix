@@ -1,4 +1,5 @@
 import { getBalance } from '@/services/solana';
+import { upsertProfile } from '@/services/profile-service';
 import {
   connectMetamaskWallet,
   connectPhantomWallet,
@@ -6,6 +7,7 @@ import {
   disconnectWallet as disconnectWalletService,
   restoreSavedWallet,
   saveWalletAddress,
+  type WalletProvider,
 } from '@/services/wallet-service';
 import { create } from 'zustand';
 
@@ -16,8 +18,9 @@ interface WalletStore {
   connecting: boolean;
   error: string | null;
   walletProvider: string | null;
+  sessionVersion: number;
 
-  connect: (provider?: string) => Promise<void>;
+  connect: (provider?: WalletProvider['id']) => Promise<void>;
   connectWithAddress: (address: string) => Promise<void>;
   disconnect: () => Promise<void>;
   refreshBalance: () => Promise<void>;
@@ -33,6 +36,7 @@ export const useWalletStore = create<WalletStore>((set, get) => ({
   connecting: false,
   error: null,
   walletProvider: null,
+  sessionVersion: 0,
 
   connect: async (provider = 'phantom') => {
     set({ connecting: true, error: null, walletProvider: provider });
@@ -46,13 +50,19 @@ export const useWalletStore = create<WalletStore>((set, get) => ({
       } else if (provider === 'metamask') {
         result = await connectMetamaskWallet();
       } else {
-        result = await connectPhantomWallet();
+        throw new Error(`Unsupported wallet provider: ${provider}`);
       }
 
       // On web, the extension returns the result directly.
       // On mobile, result is null — connection completes via deep link callback.
       if (result) {
         await saveWalletAddress(result.publicKey);
+
+        // Save wallet to Supabase profiles table
+        upsertProfile(result.publicKey).catch((err) =>
+          console.error('Failed to save profile to Supabase:', err)
+        );
+
         set({
           connected: true,
           publicKey: result.publicKey,
@@ -60,6 +70,8 @@ export const useWalletStore = create<WalletStore>((set, get) => ({
           connecting: false,
         });
       } else {
+        // Mobile deep-link flow may complete asynchronously via callback.
+        // Keep UI interactive so users can retry if wallet app does not return.
         set({ connecting: false });
       }
     } catch (error: any) {
@@ -77,6 +89,11 @@ export const useWalletStore = create<WalletStore>((set, get) => ({
       const balance = await getBalance(address);
       await saveWalletAddress(address);
 
+      // Save wallet to Supabase profiles table
+      upsertProfile(address).catch((err) =>
+        console.error('Failed to save profile to Supabase:', err)
+      );
+
       set({
         connected: true,
         publicKey: address,
@@ -92,9 +109,9 @@ export const useWalletStore = create<WalletStore>((set, get) => ({
   },
 
   disconnect: async () => {
-    try {
-      await disconnectWalletService();
-    } catch { }
+    const nextVersion = get().sessionVersion + 1;
+
+    // Optimistically clear app state first so UI disconnects immediately.
     set({
       connected: false,
       publicKey: null,
@@ -102,7 +119,14 @@ export const useWalletStore = create<WalletStore>((set, get) => ({
       connecting: false,
       error: null,
       walletProvider: null,
+      sessionVersion: nextVersion,
     });
+
+    try {
+      await disconnectWalletService();
+    } catch (error) {
+      console.error('Error disconnecting wallet service:', error);
+    }
   },
 
   refreshBalance: async () => {
@@ -122,9 +146,17 @@ export const useWalletStore = create<WalletStore>((set, get) => ({
   },
 
   restoreSession: async () => {
+    const versionAtStart = get().sessionVersion;
     try {
       const saved = await restoreSavedWallet();
+      if (get().sessionVersion !== versionAtStart) return;
+
       if (saved) {
+        // Ensure profile exists in Supabase on session restore too
+        upsertProfile(saved.publicKey).catch((err) =>
+          console.error('Failed to save profile to Supabase on restore:', err)
+        );
+
         set({
           connected: true,
           publicKey: saved.publicKey,

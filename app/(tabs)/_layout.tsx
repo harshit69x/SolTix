@@ -2,8 +2,11 @@ import { HapticTab } from '@/components/haptic-tab';
 import { Ionicons } from '@expo/vector-icons';
 import { Tabs } from 'expo-router';
 import React from 'react';
+import { Platform } from 'react-native';
 
 export default function TabLayout() {
+  const isWeb = Platform.OS === 'web';
+
   return (
     <Tabs
       screenOptions={{
@@ -15,14 +18,18 @@ export default function TabLayout() {
           backgroundColor: '#1a1a2e',
           borderTopColor: '#2d2d44',
           borderTopWidth: 1,
-          height: 85,
-          paddingBottom: 28,
+          height: isWeb ? 76 : 85,
+          paddingBottom: isWeb ? 10 : 28,
           paddingTop: 8,
         },
+        tabBarItemStyle: {
+          paddingVertical: isWeb ? 2 : 0,
+        },
         tabBarLabelStyle: {
-          fontSize: 12,
+          fontSize: isWeb ? 11 : 12,
+          lineHeight: isWeb ? 13 : 14,
           fontWeight: '600',
-          marginTop: 4,
+          marginTop: isWeb ? 2 : 4,
         },
       }}
     >

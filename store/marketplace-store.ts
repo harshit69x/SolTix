@@ -5,7 +5,7 @@ import {
   updateListingStatus as updateListingStatusAPI,
 } from '@/services/marketplace-service';
 import { MOCK_LISTINGS } from '@/data/mock-data';
-import { ListingStatus, MarketplaceListing } from '@/types';
+import { ListingStatus, MarketplaceListing, Ticket } from '@/types';
 import { create } from 'zustand';
 
 interface MarketplaceStore {
@@ -21,6 +21,7 @@ interface MarketplaceStore {
     listPrice: number;
     maxAllowedPrice: number;
     royaltyPercentage: number;
+    ticket?: Ticket;
   }) => Promise<MarketplaceListing>;
   updateListingStatus: (
     listingId: string,

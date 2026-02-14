@@ -97,6 +97,7 @@ export default function ResaleScreen() {
         listPrice: parseFloat(price),
         maxAllowedPrice: maxResalePrice,
         royaltyPercentage: royaltyPercentage,
+        ticket,
       });
 
       // Update ticket status — compensate on failure
